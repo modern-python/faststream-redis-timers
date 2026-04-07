@@ -1,0 +1,27 @@
+services:
+  application:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    restart: always
+    volumes:
+      - .:/code
+      - /code/.venv
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    stdin_open: true
+    tty: true
+
+  redis:
+    image: redis:8
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
