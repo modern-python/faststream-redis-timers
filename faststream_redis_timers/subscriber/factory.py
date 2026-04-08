@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+import typing
 
 from faststream._internal.endpoint.subscriber.call_item import CallsCollection
 
@@ -7,7 +7,7 @@ from faststream_redis_timers.subscriber.config import TimersSubscriberConfig, Ti
 from faststream_redis_timers.subscriber.usecase import TimersSubscriber, TimersSubscriberSpecification
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from faststream_redis_timers.configs import TimersBrokerConfig
 
 
@@ -41,7 +41,7 @@ def create_subscriber(  # noqa: PLR0913
         description_=description_,
         include_in_schema=include_in_schema,
     )
-    calls: CallsCollection[Any] = CallsCollection()
+    calls: CallsCollection[typing.Any] = CallsCollection()
     specification = TimersSubscriberSpecification(
         _outer_config=config,
         specification_config=specification_config,

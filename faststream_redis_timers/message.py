@@ -1,15 +1,15 @@
-from typing import TYPE_CHECKING, Literal, override
+import typing
 
 from faststream.message import StreamMessage
 from typing_extensions import TypedDict
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from redis.asyncio import Redis
 
 
 class TimerMessage(TypedDict):
-    type: Literal["timer"]
+    type: typing.Literal["timer"]
     channel: str
     timer_id: str
     data: bytes
@@ -31,7 +31,7 @@ class TimerStreamMessage(StreamMessage["TimerMessage"]):
         self._timeline_key = _timeline_key
         self._payloads_key = _payloads_key
 
-    @override
+    @typing.override
     async def ack(self) -> None:
         if not self.committed:
             async with self._redis_client.pipeline(transaction=True) as pipe:
@@ -40,11 +40,11 @@ class TimerStreamMessage(StreamMessage["TimerMessage"]):
                 await pipe.execute()
         await super().ack()
 
-    @override
+    @typing.override
     async def nack(self) -> None:
         await super().nack()  # timer stays in Redis for retry
 
-    @override
+    @typing.override
     async def reject(self) -> None:
         if not self.committed:
             async with self._redis_client.pipeline(transaction=True) as pipe:

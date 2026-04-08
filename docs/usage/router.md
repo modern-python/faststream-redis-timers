@@ -20,10 +20,12 @@ async def handle_invoice(invoice_id: str) -> None:
 ```python
 from faststream import FastStream
 from faststream_redis_timers import TimersBroker
+from redis.asyncio import Redis
 
 from myapp.routers import router
 
-broker = TimersBroker("redis://localhost:6379")
+client = Redis.from_url("redis://localhost:6379")
+broker = TimersBroker(client)
 broker.include_router(router)
 app = FastStream(broker)
 ```

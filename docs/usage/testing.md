@@ -52,6 +52,7 @@ async def test_publisher() -> None:
 
 - `activate_in` is **ignored** in tests — messages are delivered immediately.
 - `timer_id` is passed through normally and available in the handler via the message.
+- `cancel_timer` / `publisher.cancel()` are no-ops in tests — since messages are delivered immediately, by the time you'd cancel, the handler has already run.
 - The fake producer uses the same JSON envelope format as the real one, so all serialization paths are exercised.
 
 ## pytest-asyncio configuration

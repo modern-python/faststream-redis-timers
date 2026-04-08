@@ -5,8 +5,10 @@
 ```python
 from faststream import FastStream
 from faststream_redis_timers import TimersBroker
+from redis.asyncio import Redis
 
-broker = TimersBroker("redis://localhost:6379")
+client = Redis.from_url("redis://localhost:6379")
+broker = TimersBroker(client)
 app = FastStream(broker)
 ```
 
@@ -42,8 +44,10 @@ The full example:
 from datetime import timedelta
 from faststream import FastStream
 from faststream_redis_timers import TimersBroker
+from redis.asyncio import Redis
 
-broker = TimersBroker("redis://localhost:6379")
+client = Redis.from_url("redis://localhost:6379")
+broker = TimersBroker(client)
 app = FastStream(broker)
 
 
@@ -65,7 +69,7 @@ async def schedule_reminder() -> None:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `url` | `redis://localhost:6379` | Redis connection URL |
+| `client` | `None` | `redis.asyncio.Redis` client instance |
 | `timeline_key` | `timers_timeline` | Sorted set key name |
 | `payloads_key` | `timers_payloads` | Hash key name |
 | `lock_prefix` | `timers_lock:` | Distributed lock key prefix |
@@ -82,4 +86,20 @@ await broker.publish(
     timer_id="invoice-INV-001-due",
     activate_in=timedelta(days=30),
 )
+```
+
+## Cancelling timers
+
+Cancel a pending timer before it fires using `broker.cancel_timer(topic, timer_id)`. This is a no-op if the timer has already fired or does not exist:
+
+```python
+await broker.publish(
+    "INV-001",
+    topic="invoices",
+    timer_id="invoice-INV-001-due",
+    activate_in=timedelta(days=30),
+)
+
+# Later — invoice was paid early, cancel the reminder
+await broker.cancel_timer("invoices", "invoice-INV-001-due")
 ```
