@@ -1,5 +1,5 @@
 site_name: faststream-redis-timers
-repo_url: https://github.com/community-of-python/faststream-redis-timers
+repo_url: https://github.com/modern-python/faststream-redis-timers
 docs_dir: docs
 edit_uri: edit/main/docs/
 nav:
@@ -8,6 +8,7 @@ nav:
       - How it works: introduction/how-it-works.md
   - Usage:
       - Basic usage: usage/basic.md
+      - Subscriber: usage/subscriber.md
       - Publisher: usage/publisher.md
       - Router: usage/router.md
       - Testing: usage/testing.md
@@ -69,5 +70,5 @@ extra_css:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/community-of-python/faststream-redis-timers
+      link: https://github.com/modern-python/faststream-redis-timers
       name: GitHub
