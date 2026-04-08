@@ -1,10 +1,10 @@
+import typing
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from faststream._internal.configs import PublisherSpecificationConfig, PublisherUsecaseConfig
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from faststream_redis_timers.configs import TimersBrokerConfig
 
 

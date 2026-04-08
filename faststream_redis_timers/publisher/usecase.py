@@ -1,7 +1,6 @@
 import typing
 from collections.abc import Iterable
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, NoReturn
 
 from faststream._internal.endpoint.publisher import PublisherSpecification, PublisherUsecase
 from faststream.message import gen_cor_id
@@ -13,7 +12,7 @@ from faststream_redis_timers.publisher.config import TimersPublisherConfig, Time
 from faststream_redis_timers.response import TimerPublishCommand
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from faststream._internal.basic_types import SendableMessage
     from faststream._internal.types import PublisherMiddleware
     from faststream.response.response import PublishCommand
@@ -96,6 +95,6 @@ class TimersPublisher(PublisherUsecase):
         producer = typing.cast("TimersProducer", self.config._outer_config.producer)  # noqa: SLF001
         await producer.cancel(self.config.full_topic, timer_id)
 
-    async def request(self, *args: Any, **kwargs: Any) -> NoReturn:
+    async def request(self, *args: typing.Any, **kwargs: typing.Any) -> typing.NoReturn:
         msg = "Timers do not support request-reply"
         raise NotImplementedError(msg)

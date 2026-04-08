@@ -1,12 +1,12 @@
 import json
-from typing import TYPE_CHECKING, Any
+import typing
 
 from faststream.message import decode_message
 
 from faststream_redis_timers.message import TimerStreamMessage
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from faststream_redis_timers.message import TimerMessage
     from faststream_redis_timers.subscriber.config import TimersSubscriberConfig
 
@@ -38,5 +38,5 @@ class TimerParser:
             _payloads_key=self._config.topic_payloads_key,
         )
 
-    async def decode_message(self, msg: TimerStreamMessage) -> Any:
+    async def decode_message(self, msg: TimerStreamMessage) -> typing.Any:
         return decode_message(msg)

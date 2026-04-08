@@ -1,8 +1,8 @@
 import logging
 import time
+import typing
 from collections.abc import Sequence
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any, NoReturn, override
 
 import anyio
 from faststream._internal.endpoint.subscriber import SubscriberSpecification, SubscriberUsecase
@@ -16,7 +16,7 @@ from faststream_redis_timers.parser.parser import TimerParser
 from faststream_redis_timers.subscriber.config import TimersSubscriberConfig, TimersSubscriberSpecificationConfig
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from faststream._internal.endpoint.publisher import PublisherProto
     from faststream._internal.endpoint.subscriber.call_item import CallsCollection
     from faststream.message import StreamMessage
@@ -54,7 +54,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):  # type: ig
         self,
         config: TimersSubscriberConfig,
         specification: TimersSubscriberSpecification,
-        calls: "CallsCollection[Any]",
+        calls: "CallsCollection[typing.Any]",
     ) -> None:
         timer_parser = TimerParser(config)
         config.parser = timer_parser.parse_message
@@ -67,7 +67,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):  # type: ig
     def _client(self) -> "Redis[bytes]":
         return self._outer_config.connection.client
 
-    @override
+    @typing.override
     async def start(self) -> None:
         await super().start()
         self._post_start()
@@ -152,14 +152,14 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):  # type: ig
             finally:
                 await lock.release()
 
-    @override
+    @typing.override
     async def stop(self) -> None:
         with anyio.move_on_after(self._outer_config.graceful_timeout):
             async with self._read_lock:
                 await super().stop()
 
-    @override
-    async def get_one(self, *, timeout: float = 5.0) -> NoReturn:  # noqa: ASYNC109
+    @typing.override
+    async def get_one(self, *, timeout: float = 5.0) -> typing.NoReturn:  # noqa: ASYNC109
         msg = "TimersBroker does not support get_one()"
         raise NotImplementedError(msg)
 

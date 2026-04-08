@@ -1,5 +1,5 @@
+import typing
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from faststream._internal.configs import SubscriberSpecificationConfig, SubscriberUsecaseConfig
 from faststream._internal.constants import EMPTY
@@ -8,7 +8,7 @@ from faststream.middlewares import AckPolicy
 from faststream_redis_timers.schemas import TimerSub
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from faststream_redis_timers.configs import TimersBrokerConfig
 
 

@@ -11,6 +11,7 @@ Schedule messages to be delivered to subscribers at a future point in time — r
 - [Installation](introduction/installation.md)
 - [How it works](introduction/how-it-works.md)
 - [Basic usage](usage/basic.md)
+- [Subscriber](usage/subscriber.md)
 - [Publisher](usage/publisher.md)
 - [Router](usage/router.md)
 - [Testing](usage/testing.md)

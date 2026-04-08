@@ -1,13 +1,13 @@
 import json
+import typing
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, NoReturn
 
 from faststream.message import encode_message
 
 from faststream_redis_timers.response import TimerPublishCommand
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from fast_depends.library.serializer import SerializerProto
     from faststream._internal.types import AsyncCallable
 
@@ -54,11 +54,11 @@ class TimersProducer:
             pipe.hdel(payloads_key, timer_id)
             await pipe.execute()
 
-    async def request(self, cmd: TimerPublishCommand) -> NoReturn:  # pragma: no cover
+    async def request(self, cmd: TimerPublishCommand) -> typing.NoReturn:  # pragma: no cover
         msg = "Timers do not support request-reply"
         raise NotImplementedError(msg)
 
-    async def publish_batch(self, cmd: TimerPublishCommand) -> NoReturn:  # pragma: no cover
+    async def publish_batch(self, cmd: TimerPublishCommand) -> typing.NoReturn:  # pragma: no cover
         msg = "Use multiple publish() calls for multiple timers"
         raise NotImplementedError(msg)
 

@@ -1,7 +1,6 @@
 import json
 import typing
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock
 
 from faststream._internal.testing.broker import TestBroker, change_producer
@@ -15,7 +14,7 @@ from faststream_redis_timers.response import TimerPublishCommand
 from faststream_redis_timers.subscriber.usecase import TimersSubscriber
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from collections.abc import Iterator
 
 
@@ -48,7 +47,7 @@ class TestTimersBroker(TestBroker[TimersBroker]):
         with super()._patch_broker(broker):
             yield
 
-    async def _fake_connect(self, broker: TimersBroker, *args: Any, **kwargs: Any) -> None: ...
+    async def _fake_connect(self, broker: TimersBroker, *args: typing.Any, **kwargs: typing.Any) -> None: ...
 
 
 class FakeTimersProducer(TimersProducer):

@@ -12,8 +12,10 @@ Schedule messages to be delivered to subscribers at a future point in time — r
 from datetime import timedelta
 from faststream import FastStream
 from faststream_redis_timers import TimersBroker
+from redis.asyncio import Redis
 
-broker = TimersBroker("redis://localhost:6379")
+client = Redis.from_url("redis://localhost:6379")
+broker = TimersBroker(client)
 app = FastStream(broker)
 
 @broker.subscriber("invoices")

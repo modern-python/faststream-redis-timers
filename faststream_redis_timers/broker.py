@@ -2,7 +2,6 @@ import logging
 import typing
 from collections.abc import Iterable, Sequence
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, override
 
 from fast_depends.dependencies import Dependant
 from faststream import BaseMiddleware
@@ -29,7 +28,7 @@ from faststream_redis_timers.response import TimerPublishCommand
 from faststream_redis_timers.subscriber.usecase import TimersSubscriber
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from faststream._internal.context.repository import ContextRepo
     from redis.asyncio import Redis
 
@@ -127,21 +126,21 @@ class TimersBroker(
         )
         super().__init__(config=broker_config, specification=specification, routers=routers)  # ty: ignore[unknown-argument]
 
-    @override
+    @typing.override
     async def _connect(self) -> "Redis[bytes]":
         return self.config.broker_config.connection.client
 
-    @override
+    @typing.override
     async def __aenter__(self) -> typing.Self:
         await self.start()
         return self
 
-    @override
+    @typing.override
     async def start(self) -> None:
         await self.connect()
         await super().start()
 
-    @override
+    @typing.override
     async def ping(self, timeout: float | None = None) -> bool:  # noqa: ASYNC109
         try:
             client = self.config.broker_config.connection.client
@@ -179,10 +178,10 @@ class TimersBroker(
         producer = typing.cast("TimersProducer", self.config.broker_config.producer)
         await producer.cancel(full_topic, timer_id)
 
-    async def request(self, *args: Any, **kwargs: Any) -> Any:
+    async def request(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
         msg = "TimersBroker does not support request-reply"
         raise NotImplementedError(msg)
 
-    async def publish_batch(self, *args: Any, **kwargs: Any) -> None:
+    async def publish_batch(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         msg = "Use multiple publish() calls for multiple timers"
         raise NotImplementedError(msg)
