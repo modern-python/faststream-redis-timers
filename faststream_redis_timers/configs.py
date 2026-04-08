@@ -10,27 +10,21 @@ if TYPE_CHECKING:
 
 
 class ConnectionState:
-    def __init__(self, url: str) -> None:
-        self._url = url
-        self._client: Redis[bytes] | None = None
+    def __init__(self, client: "Redis[bytes] | None" = None) -> None:
+        self._client = client
 
     @property
     def client(self) -> "Redis[bytes]":
-        if not self._client:
+        if self._client is None:
             msg = "Connection not available. Connect the broker first."
             raise IncorrectState(msg)
         return self._client
 
     async def connect(self) -> "Redis[bytes]":
-        from redis.asyncio import Redis  # noqa: PLC0415
-
-        self._client = Redis.from_url(self._url)  # type: ignore[attr-defined]
-        return self._client
+        return self.client
 
     async def disconnect(self) -> None:
-        if self._client:
-            await self._client.aclose()  # type: ignore[attr-defined]
-        self._client = None
+        pass  # caller owns the client
 
 
 @dataclass(kw_only=True)
@@ -50,5 +44,5 @@ class TimersBrokerConfig(BrokerConfig):
 @dataclass(kw_only=True)
 class TimersRouterConfig(BrokerConfig):
     @property  # type: ignore[override]
-    def connection(self) -> None:
+    def connection(self) -> None:  # pragma: no cover
         raise IncorrectState

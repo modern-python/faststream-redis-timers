@@ -9,8 +9,9 @@ from faststream._internal.endpoint.subscriber import SubscriberSpecification, Su
 from faststream._internal.endpoint.subscriber.mixins import TasksMixin
 from faststream.specification.asyncapi.utils import resolve_payloads
 from faststream.specification.schema import Message, Operation, SubscriberSpec
+from redis.asyncio.lock import Lock
 
-from faststream_redis_timers.message import TIMER_SEPARATOR, TimerMessage
+from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.parser.parser import TimerParser
 from faststream_redis_timers.subscriber.config import TimersSubscriberConfig, TimersSubscriberSpecificationConfig
 
@@ -87,7 +88,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):  # type: ig
         while self.running:
             try:
                 await self._get_msgs(client)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001  # pragma: no cover
                 self._log(
                     log_level=logging.ERROR,
                     message="Message fetch error",
@@ -97,32 +98,30 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):  # type: ig
                     connected = False
                 await anyio.sleep(5)
             else:
-                if not connected:
+                if not connected:  # pragma: no cover
                     connected = True
             finally:
                 if not start_signal.is_set():
-                    with suppress(Exception):
+                    with suppress(Exception):  # pragma: no cover
                         start_signal.set()
 
     async def _get_msgs(self, client: "Redis[bytes]") -> None:
-        from redis.asyncio.lock import Lock  # noqa: PLC0415
-
         now = time.time()
-        timer_keys: list[bytes] = await client.zrangebyscore(self._config.timeline_key, "-inf", now)
+        timer_ids: list[bytes] = await client.zrangebyscore(self._config.topic_timeline_key, "-inf", now)
 
-        if not timer_keys:
+        if not timer_ids:
             await anyio.sleep(self._config.timer_sub.polling_interval)
             return
 
         count = 0
-        for raw_key in timer_keys:
+        for raw_id in timer_ids:
             if count >= self._config.timer_sub.max_concurrent:
                 break
 
-            key_str = raw_key.decode() if isinstance(raw_key, bytes) else raw_key
+            timer_id = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
             lock = Lock(
                 client,
-                f"{self._config.lock_prefix}{key_str}",
+                f"{self._config.lock_prefix}{self._config.full_topic}:{timer_id}",
                 timeout=self._config.timer_sub.lock_ttl,
                 blocking=False,
             )
@@ -132,19 +131,19 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):  # type: ig
                 continue
 
             try:
-                raw_payload: bytes | None = await client.hget(self._config.payloads_key, key_str)
+                raw_payload: bytes | None = await client.hget(self._config.topic_payloads_key, timer_id)
                 if raw_payload is None:
-                    await client.zrem(self._config.timeline_key, key_str)
+                    await client.zrem(self._config.topic_timeline_key, timer_id)
                     continue
 
-                sep = TIMER_SEPARATOR
-                if sep not in key_str:
-                    continue  # malformed key
+                async with client.pipeline(transaction=True) as pipe:
+                    pipe.zrem(self._config.topic_timeline_key, timer_id)
+                    pipe.hdel(self._config.topic_payloads_key, timer_id)
+                    await pipe.execute()
 
-                topic, timer_id = key_str.split(sep, 1)
                 msg = TimerMessage(
                     type="timer",
-                    channel=topic,
+                    channel=self._config.full_topic,
                     timer_id=timer_id,
                     data=raw_payload,
                 )

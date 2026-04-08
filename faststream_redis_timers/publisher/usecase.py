@@ -1,3 +1,4 @@
+import typing
 from collections.abc import Iterable
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, NoReturn
@@ -16,6 +17,8 @@ if TYPE_CHECKING:
     from faststream._internal.basic_types import SendableMessage
     from faststream._internal.types import PublisherMiddleware
     from faststream.response.response import PublishCommand
+
+    from faststream_redis_timers.publisher.producer import TimersProducer
 
 
 class TimersPublisherSpecification(PublisherSpecification["TimersBrokerConfig", TimersPublisherSpecificationConfig]):  # ty: ignore[unresolved-reference]
@@ -87,6 +90,11 @@ class TimersPublisher(PublisherUsecase):
             producer=self.config._outer_config.producer,  # noqa: SLF001
             _extra_middlewares=_extra_middlewares,
         )
+
+    async def cancel(self, timer_id: str) -> None:
+        """Cancel a pending timer by ID. No-op if the timer has already fired or does not exist."""
+        producer = typing.cast("TimersProducer", self.config._outer_config.producer)  # noqa: SLF001
+        await producer.cancel(self.config.full_topic, timer_id)
 
     async def request(self, *args: Any, **kwargs: Any) -> NoReturn:
         msg = "Timers do not support request-reply"

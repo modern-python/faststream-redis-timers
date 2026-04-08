@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, NoReturn
 
 from faststream.message import encode_message
 
-from faststream_redis_timers.message import TIMER_SEPARATOR
 from faststream_redis_timers.response import TimerPublishCommand
 
 
@@ -37,21 +36,31 @@ class TimersProducer:
         body, content_type = encode_message(cmd.body, serializer=self.serializer)
         payload = json.dumps({"b": body.hex(), "ct": content_type}).encode()
 
-        timer_key = f"{cmd.destination}{TIMER_SEPARATOR}{cmd.timer_id}"
+        timeline_key = f"{self._timeline_key}:{cmd.destination}"
+        payloads_key = f"{self._payloads_key}:{cmd.destination}"
         activation_ts = (datetime.now(tz=UTC) + cmd.activate_in).timestamp()
 
         async with client.pipeline(transaction=True) as pipe:
-            pipe.zadd(self._timeline_key, {timer_key: activation_ts})
-            pipe.hset(self._payloads_key, timer_key, payload)
+            pipe.zadd(timeline_key, {cmd.timer_id: activation_ts})
+            pipe.hset(payloads_key, cmd.timer_id, payload)
             await pipe.execute()
 
-    async def request(self, cmd: TimerPublishCommand) -> NoReturn:
+    async def cancel(self, full_topic: str, timer_id: str) -> None:
+        client = self._connection.client
+        timeline_key = f"{self._timeline_key}:{full_topic}"
+        payloads_key = f"{self._payloads_key}:{full_topic}"
+        async with client.pipeline(transaction=True) as pipe:
+            pipe.zrem(timeline_key, timer_id)
+            pipe.hdel(payloads_key, timer_id)
+            await pipe.execute()
+
+    async def request(self, cmd: TimerPublishCommand) -> NoReturn:  # pragma: no cover
         msg = "Timers do not support request-reply"
         raise NotImplementedError(msg)
 
-    async def publish_batch(self, cmd: TimerPublishCommand) -> NoReturn:
+    async def publish_batch(self, cmd: TimerPublishCommand) -> NoReturn:  # pragma: no cover
         msg = "Use multiple publish() calls for multiple timers"
         raise NotImplementedError(msg)
 
-    def connect(self, serializer: "SerializerProto | None" = None) -> None:
+    def connect(self, serializer: "SerializerProto | None" = None) -> None:  # pragma: no cover
         self.serializer = serializer

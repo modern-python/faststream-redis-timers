@@ -1,0 +1,191 @@
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from faststream.exceptions import IncorrectState
+
+from faststream_redis_timers import TimersBroker
+from faststream_redis_timers.broker import TimersParamsStorage
+from faststream_redis_timers.configs import ConnectionState
+from faststream_redis_timers.message import TimerStreamMessage
+from faststream_redis_timers.router import TimersRoute, TimersRoutePublisher, TimersRouter
+
+
+# --- ConnectionState ---
+
+
+def test_connection_state_client_not_set_raises() -> None:
+    state = ConnectionState()
+    with pytest.raises(IncorrectState):
+        _ = state.client
+
+
+async def test_connection_state_connect_returns_client() -> None:
+    client = AsyncMock()
+    state = ConnectionState(client)
+    result = await state.connect()
+    assert result is client
+
+
+async def test_connection_state_disconnect_is_noop() -> None:
+    state = ConnectionState()
+    await state.disconnect()  # must not raise
+
+
+# --- TimersBrokerConfig ---
+
+
+async def test_broker_config_connect_and_disconnect() -> None:
+    client = AsyncMock()
+    broker = TimersBroker(client)
+    config = broker.config.broker_config
+    await config.connect()
+    await config.disconnect()
+
+
+# --- TimersBroker.ping ---
+
+
+async def test_broker_ping_without_client_returns_false() -> None:
+    broker = TimersBroker()  # no client set
+    assert await broker.ping() is False
+
+
+async def test_broker_ping_when_redis_raises_returns_false() -> None:
+    client = AsyncMock()
+    client.ping.side_effect = ConnectionError("timeout")
+    broker = TimersBroker(client)
+    assert await broker.ping() is False
+
+
+async def test_broker_ping_success() -> None:
+    client = AsyncMock()
+    client.ping.return_value = True
+    broker = TimersBroker(client)
+    assert await broker.ping() is True
+
+
+# --- TimersParamsStorage.get_logger (cache hit) ---
+
+
+def test_params_storage_get_logger_is_cached() -> None:
+    storage = TimersParamsStorage()
+    context = MagicMock()
+    logger1 = storage.get_logger(context=context)
+    logger2 = storage.get_logger(context=context)  # cache hit → line 43
+    assert logger1 is logger2
+
+
+# --- Subscriber.get_one raises ---
+
+
+async def test_subscriber_get_one_raises() -> None:
+    broker = TimersBroker()
+    sub = broker.subscriber("topic")
+    with pytest.raises(NotImplementedError):
+        await sub.get_one()
+
+
+# --- Publisher.request raises ---
+
+
+async def test_publisher_request_raises() -> None:
+    broker = TimersBroker()
+    pub = broker.publisher("topic")
+    with pytest.raises(NotImplementedError):
+        await pub.request("x")
+
+
+# --- TimersSubscriberSpecification.name / get_schema ---
+
+
+def test_subscriber_specification_name_and_schema() -> None:
+    broker = TimersBroker()
+    sub = broker.subscriber("my-topic")
+    spec = sub.specification
+    name = spec.name
+    assert "my-topic" in name
+    schema = spec.get_schema()
+    assert schema  # non-empty dict
+
+
+# --- TimersPublisherSpecification.name / get_schema ---
+
+
+def test_publisher_specification_name_and_schema() -> None:
+    broker = TimersBroker()
+    pub = broker.publisher("my-topic")
+    spec = pub.specification
+    name = spec.name
+    assert "my-topic" in name
+    schema = spec.get_schema()
+    assert schema  # non-empty dict
+
+
+# --- TimerStreamMessage.nack / reject ---
+
+
+async def test_timer_stream_message_nack() -> None:
+    client = AsyncMock()
+    msg = TimerStreamMessage(
+        raw_message={"type": "timer", "channel": "topic", "timer_id": "id", "data": b""},
+        body=b"data",
+        headers={},
+        content_type=None,
+        message_id="id",
+        correlation_id="id",
+        _redis_client=client,
+        _timer_key="id",
+        _timeline_key="tl:topic",
+        _payloads_key="pl:topic",
+    )
+    await msg.nack()  # timer stays in Redis (no-op for timer message)
+
+
+async def test_timer_stream_message_reject() -> None:
+    client = AsyncMock()
+    pipe = AsyncMock()
+    pipe.__aenter__ = AsyncMock(return_value=pipe)
+    pipe.__aexit__ = AsyncMock(return_value=False)
+    client.pipeline = MagicMock(return_value=pipe)
+    msg = TimerStreamMessage(
+        raw_message={"type": "timer", "channel": "topic", "timer_id": "id", "data": b""},
+        body=b"data",
+        headers={},
+        content_type=None,
+        message_id="id",
+        correlation_id="id",
+        _redis_client=client,
+        _timer_key="id",
+        _timeline_key="tl:topic",
+        _payloads_key="pl:topic",
+    )
+    await msg.reject()
+    pipe.zrem.assert_called_once_with("tl:topic", "id")
+    pipe.hdel.assert_called_once_with("pl:topic", "id")
+
+
+# --- Subscriber._make_response_publisher ---
+
+
+def test_subscriber_make_response_publisher() -> None:
+    broker = TimersBroker()
+    sub = broker.subscriber("topic")
+    result = sub._make_response_publisher(MagicMock())  # noqa: SLF001
+    assert result == ()
+
+
+# --- TimersRouter, TimersRoute, TimersRoutePublisher ---
+
+
+def test_timers_router_instantiation() -> None:
+    router = TimersRouter(prefix="timers/")
+    assert router is not None
+
+
+def test_timers_route_and_route_publisher() -> None:
+    async def handler(body: str) -> None: ...
+
+    route = TimersRoute(handler, "my-topic")
+    pub = TimersRoutePublisher("my-topic")
+    assert route is not None
+    assert pub is not None

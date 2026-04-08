@@ -75,3 +75,6 @@ class FakeTimersProducer(TimersProducer):
             sub = typing.cast("TimersSubscriber", handler)
             if sub._config.full_topic == topic:  # noqa: SLF001
                 await handler.process_message(msg)
+
+    async def cancel(self, full_topic: str, timer_id: str) -> None:
+        pass  # In tests, timers are delivered immediately, so cancel is always a no-op

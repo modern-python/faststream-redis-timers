@@ -8,9 +8,6 @@ if TYPE_CHECKING:
     from redis.asyncio import Redis
 
 
-TIMER_SEPARATOR: str = "--"
-
-
 class TimerMessage(TypedDict):
     type: Literal["timer"]
     channel: str

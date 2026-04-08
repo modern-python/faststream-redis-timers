@@ -71,7 +71,7 @@ class TimersBroker(
 
     def __init__(  # noqa: PLR0913
         self,
-        url: str = "redis://localhost:6379",
+        client: "Redis[bytes] | None" = None,
         *,
         timeline_key: str = "timers_timeline",
         payloads_key: str = "timers_payloads",
@@ -92,7 +92,7 @@ class TimersBroker(
         tags: Iterable[Tag | TagDict] = (),
     ) -> None:
         fd_config = FastDependsConfig(use_fastdepends=apply_types)
-        connection = ConnectionState(url)
+        connection = ConnectionState(client)
         broker_config = TimersBrokerConfig(
             connection=connection,
             timeline_key=timeline_key,
@@ -118,7 +118,7 @@ class TimersBroker(
             ),
         )
         specification = BrokerSpec(
-            url=[url],
+            url=[],
             protocol="redis",
             protocol_version="5.0",
             description=description,
@@ -129,8 +129,12 @@ class TimersBroker(
 
     @override
     async def _connect(self) -> "Redis[bytes]":
-        await self.config.broker_config.connect()
         return self.config.broker_config.connection.client
+
+    @override
+    async def __aenter__(self) -> typing.Self:
+        await self.start()
+        return self
 
     @override
     async def start(self) -> None:
@@ -168,6 +172,12 @@ class TimersBroker(
             correlation_id=correlation_id or gen_cor_id(),
         )
         return typing.cast("None", await self._basic_publish(cmd, producer=self.config.producer))
+
+    async def cancel_timer(self, topic: str, timer_id: str) -> None:
+        """Cancel a pending timer. No-op if the timer has already fired or does not exist."""
+        full_topic = f"{self.config.broker_config.prefix}{topic}"
+        producer = typing.cast("TimersProducer", self.config.broker_config.producer)
+        await producer.cancel(full_topic, timer_id)
 
     async def request(self, *args: Any, **kwargs: Any) -> Any:
         msg = "TimersBroker does not support request-reply"
