@@ -48,7 +48,7 @@ class TimersPublisher(PublisherUsecase):
         config: TimersPublisherConfig,
         specification: TimersPublisherSpecification,
     ) -> None:
-        super().__init__(config, specification)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+        super().__init__(config, specification)  # ty: ignore[invalid-argument-type]
         self.config = config
 
     async def publish(

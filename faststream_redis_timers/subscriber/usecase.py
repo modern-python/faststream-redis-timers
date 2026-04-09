@@ -47,7 +47,7 @@ class TimersSubscriberSpecification(SubscriberSpecification["TimersBrokerConfig"
         }
 
 
-class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):  # type: ignore[misc]
+class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
     _outer_config: "TimersBrokerConfig"
 
     def __init__(
@@ -61,7 +61,6 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):  # type: ig
         config.decoder = timer_parser.decode_message
         super().__init__(config, specification, calls)
         self._config = config
-        self._read_lock = anyio.Lock()
 
     @property
     def _client(self) -> "Redis[bytes]":
@@ -81,8 +80,9 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):  # type: ig
             start_signal.set()
 
     async def _consume(self, client: "Redis[bytes]", *, start_signal: anyio.Event) -> None:
-        if await client.ping():
-            start_signal.set()
+        with suppress(Exception):
+            if await client.ping():
+                start_signal.set()
 
         connected = True
         while self.running:
@@ -155,8 +155,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):  # type: ig
     @typing.override
     async def stop(self) -> None:
         with anyio.move_on_after(self._outer_config.graceful_timeout):
-            async with self._read_lock:
-                await super().stop()
+            await super().stop()
 
     @typing.override
     async def get_one(self, *, timeout: float = 5.0) -> typing.NoReturn:  # noqa: ASYNC109

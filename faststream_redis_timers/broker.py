@@ -65,8 +65,8 @@ class TimersBroker(
         BrokerConfig,  # Use BrokerConfig to avoid typing issues when passing to FastStream app
     ],
 ):
-    _subscribers: list[TimersSubscriber]  # type: ignore[assignment]
-    _publishers: list[TimersPublisher]  # type: ignore[assignment]
+    _subscribers: list[TimersSubscriber]
+    _publishers: list[TimersPublisher]
 
     def __init__(  # noqa: PLR0913
         self,
@@ -97,13 +97,13 @@ class TimersBroker(
             timeline_key=timeline_key,
             payloads_key=payloads_key,
             lock_prefix=lock_prefix,
-            broker_middlewares=middlewares,  # type: ignore[arg-type]
+            broker_middlewares=middlewares,
             broker_parser=parser,
             broker_decoder=decoder,
             logger=make_logger_state(
                 logger=logger,
                 log_level=log_level,
-                default_storage_cls=TimersParamsStorage,  # type: ignore[type-abstract]
+                default_storage_cls=TimersParamsStorage,
             ),
             fd_config=fd_config,
             broker_dependencies=dependencies,
@@ -151,7 +151,7 @@ class TimersBroker(
         except Exception:  # noqa: BLE001
             return False
 
-    async def publish(  # type: ignore[override]
+    async def publish(
         self,
         message: "SendableMessage" = None,
         topic: str = "",

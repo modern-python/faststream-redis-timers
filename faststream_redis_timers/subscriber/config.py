@@ -14,11 +14,8 @@ if typing.TYPE_CHECKING:
 
 @dataclass(kw_only=True)
 class TimersSubscriberConfig(SubscriberUsecaseConfig):
-    _outer_config: "TimersBrokerConfig"  # type: ignore[assignment]
+    _outer_config: "TimersBrokerConfig"
     timer_sub: TimerSub
-    timeline_key: str = "timers_timeline"
-    payloads_key: str = "timers_payloads"
-    lock_prefix: str = "timers_lock:"
 
     @property
     def full_topic(self) -> str:
@@ -26,17 +23,21 @@ class TimersSubscriberConfig(SubscriberUsecaseConfig):
 
     @property
     def topic_timeline_key(self) -> str:
-        return f"{self.timeline_key}:{self.full_topic}"
+        return f"{self._outer_config.timeline_key}:{self.full_topic}"
 
     @property
     def topic_payloads_key(self) -> str:
-        return f"{self.payloads_key}:{self.full_topic}"
+        return f"{self._outer_config.payloads_key}:{self.full_topic}"
+
+    @property
+    def lock_prefix(self) -> str:
+        return self._outer_config.lock_prefix
 
     @property
     def ack_policy(self) -> AckPolicy:
         if self._ack_policy is EMPTY:
-            return AckPolicy.NACK_ON_ERROR
-        return self._ack_policy  # type: ignore[return-value]  # pragma: no cover
+            return AckPolicy.REJECT_ON_ERROR
+        return self._ack_policy  # pragma: no cover
 
 
 @dataclass(kw_only=True)

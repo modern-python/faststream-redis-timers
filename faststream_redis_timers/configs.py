@@ -43,6 +43,6 @@ class TimersBrokerConfig(BrokerConfig):
 
 @dataclass(kw_only=True)
 class TimersRouterConfig(BrokerConfig):
-    @property  # type: ignore[override]
+    @property
     def connection(self) -> None:  # pragma: no cover
         raise IncorrectState

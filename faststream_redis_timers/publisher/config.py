@@ -10,7 +10,7 @@ if typing.TYPE_CHECKING:
 
 @dataclass(kw_only=True)
 class TimersPublisherConfig(PublisherUsecaseConfig):
-    _outer_config: "TimersBrokerConfig"  # type: ignore[assignment]
+    _outer_config: "TimersBrokerConfig"
     topic: str
 
     @property

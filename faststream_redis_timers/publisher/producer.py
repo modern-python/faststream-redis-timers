@@ -15,8 +15,8 @@ if typing.TYPE_CHECKING:
 
 
 class TimersProducer:
-    _parser: "AsyncCallable"  # type: ignore[assignment]
-    _decoder: "AsyncCallable"  # type: ignore[assignment]
+    _parser: "AsyncCallable"
+    _decoder: "AsyncCallable"
 
     def __init__(
         self,

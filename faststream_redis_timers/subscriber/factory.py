@@ -31,9 +31,6 @@ def create_subscriber(  # noqa: PLR0913
     usecase_config = TimersSubscriberConfig(
         _outer_config=config,
         timer_sub=timer_sub,
-        timeline_key=config.timeline_key,
-        payloads_key=config.payloads_key,
-        lock_prefix=config.lock_prefix,
     )
     specification_config = TimersSubscriberSpecificationConfig(
         topic=topic,

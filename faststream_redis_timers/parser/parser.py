@@ -32,10 +32,6 @@ class TimerParser:
             content_type=content_type,
             message_id=msg["timer_id"],
             correlation_id=msg["timer_id"],
-            _redis_client=self._config._outer_config.connection.client,  # noqa: SLF001
-            _timer_key=msg["timer_id"],
-            _timeline_key=self._config.topic_timeline_key,
-            _payloads_key=self._config.topic_payloads_key,
         )
 
     async def decode_message(self, msg: TimerStreamMessage) -> typing.Any:

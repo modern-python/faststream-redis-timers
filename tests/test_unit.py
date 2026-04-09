@@ -121,11 +121,11 @@ def test_publisher_specification_name_and_schema() -> None:
     assert schema  # non-empty dict
 
 
-# --- TimerStreamMessage.nack / reject ---
+# --- TimerStreamMessage.nack ---
 
 
 async def test_timer_stream_message_nack() -> None:
-    client = AsyncMock()
+    # Timer cleanup happens in _get_msgs() before consume(); ack/nack/reject are no-ops.
     msg = TimerStreamMessage(
         raw_message={"type": "timer", "channel": "topic", "timer_id": "id", "data": b""},
         body=b"data",
@@ -133,35 +133,8 @@ async def test_timer_stream_message_nack() -> None:
         content_type=None,
         message_id="id",
         correlation_id="id",
-        _redis_client=client,
-        _timer_key="id",
-        _timeline_key="tl:topic",
-        _payloads_key="pl:topic",
     )
-    await msg.nack()  # timer stays in Redis (no-op for timer message)
-
-
-async def test_timer_stream_message_reject() -> None:
-    client = AsyncMock()
-    pipe = AsyncMock()
-    pipe.__aenter__ = AsyncMock(return_value=pipe)
-    pipe.__aexit__ = AsyncMock(return_value=False)
-    client.pipeline = MagicMock(return_value=pipe)
-    msg = TimerStreamMessage(
-        raw_message={"type": "timer", "channel": "topic", "timer_id": "id", "data": b""},
-        body=b"data",
-        headers={},
-        content_type=None,
-        message_id="id",
-        correlation_id="id",
-        _redis_client=client,
-        _timer_key="id",
-        _timeline_key="tl:topic",
-        _payloads_key="pl:topic",
-    )
-    await msg.reject()
-    pipe.zrem.assert_called_once_with("tl:topic", "id")
-    pipe.hdel.assert_called_once_with("pl:topic", "id")
+    await msg.nack()  # must not raise
 
 
 # --- Subscriber._make_response_publisher ---

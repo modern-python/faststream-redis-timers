@@ -14,7 +14,7 @@ from faststream_redis_timers.subscriber.usecase import TimersSubscriber
 
 class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty: ignore[unresolved-reference]
     @override
-    def subscriber(  # type: ignore[override]  # ty: ignore[invalid-method-override]
+    def subscriber(  # ty: ignore[invalid-method-override]
         self,
         topic: str,
         *,
@@ -34,7 +34,7 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
             polling_interval=polling_interval,
             max_concurrent=max_concurrent,
             lock_ttl=lock_ttl,
-            config=self.config,  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+            config=self.config,  # ty: ignore[invalid-argument-type]
             title_=title_,
             description_=description_,
             include_in_schema=include_in_schema,
@@ -48,7 +48,7 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
         )
 
     @override
-    def publisher(  # type: ignore[override]  # ty: ignore[invalid-method-override]
+    def publisher(  # ty: ignore[invalid-method-override]
         self,
         topic: str,
         *,
@@ -60,7 +60,7 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
     ) -> TimersPublisher:
         publisher = create_publisher(
             topic=topic,
-            config=self.config,  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+            config=self.config,  # ty: ignore[invalid-argument-type]
             middlewares=middlewares,
             title_=title_,
             description_=description_,
