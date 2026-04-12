@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -191,3 +192,44 @@ def test_timers_route_and_route_publisher() -> None:
     pub = TimersRoutePublisher("my-topic")
     assert route is not None
     assert pub is not None
+
+
+# --- TimersPublisher.fetch_redis_timers ---
+
+
+async def test_publisher_fetch_redis_timers_returns_matching() -> None:
+    client = AsyncMock()
+    client.zrangebyscore.return_value = [b"timer-1", b"timer-2"]
+    broker = TimersBroker(client)
+    pub = broker.publisher("my-topic")
+    dt = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+
+    result = await pub.fetch_redis_timers(dt)
+
+    assert result == [("my-topic", "timer-1"), ("my-topic", "timer-2")]
+    client.zrangebyscore.assert_awaited_once()
+
+
+async def test_publisher_fetch_redis_timers_empty() -> None:
+    client = AsyncMock()
+    client.zrangebyscore.return_value = []
+    broker = TimersBroker(client)
+    pub = broker.publisher("my-topic")
+    dt = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+
+    result = await pub.fetch_redis_timers(dt)
+
+    assert result == []
+
+
+async def test_publisher_fetch_redis_timers_uses_correct_key() -> None:
+    client = AsyncMock()
+    client.zrangebyscore.return_value = []
+    broker = TimersBroker(client, timeline_key="custom_timeline")
+    pub = broker.publisher("orders")
+    dt = datetime(2025, 6, 1, tzinfo=UTC)
+
+    await pub.fetch_redis_timers(dt)
+
+    key_used = client.zrangebyscore.call_args[0][0]
+    assert key_used == "custom_timeline:orders"

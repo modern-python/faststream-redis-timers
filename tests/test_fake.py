@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 
 from faststream_redis_timers import TestTimersBroker, TimersBroker
@@ -75,3 +77,11 @@ async def test_publish_batch_raises() -> None:
     async with TestTimersBroker(broker):
         with pytest.raises(NotImplementedError):
             await broker.publish_batch()
+
+
+async def test_fake_broker_fetch_redis_timers_returns_empty() -> None:
+    broker = TimersBroker()
+    pub = broker.publisher("topic")
+    async with TestTimersBroker(broker):
+        result = await pub.fetch_redis_timers(datetime.now(tz=UTC))
+    assert result == []
