@@ -43,7 +43,9 @@ class TestTimersBroker(TestBroker[TimersBroker]):
 
     @contextmanager
     def _patch_broker(self, broker: TimersBroker) -> "Iterator[None]":
-        broker.config.broker_config.connection._client = AsyncMock()  # noqa: SLF001
+        mock_client = AsyncMock()
+        mock_client.zrangebyscore.return_value = []
+        broker.config.broker_config.connection._client = mock_client  # noqa: SLF001
         with super()._patch_broker(broker):
             yield
 

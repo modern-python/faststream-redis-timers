@@ -1,6 +1,6 @@
 import typing
 from collections.abc import Iterable
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from faststream._internal.endpoint.publisher import PublisherSpecification, PublisherUsecase
 from faststream.message import gen_cor_id
@@ -94,6 +94,13 @@ class TimersPublisher(PublisherUsecase):
         """Cancel a pending timer by ID. No-op if the timer has already fired or does not exist."""
         producer = typing.cast("TimersProducer", self.config._outer_config.producer)  # noqa: SLF001
         await producer.cancel(self.config.full_topic, timer_id)
+
+    async def fetch_redis_timers(self, dt: datetime) -> list[tuple[str, str]]:
+        """Return (topic, timer_id) pairs for timers due by *dt* on this publisher's topic."""
+        client = self.config._outer_config.connection.client  # noqa: SLF001
+        timeline_key = f"{self.config._outer_config.timeline_key}:{self.config.full_topic}"  # noqa: SLF001
+        timer_ids: list[bytes] = await client.zrangebyscore(timeline_key, "-inf", dt.timestamp())
+        return [(self.config.topic, raw_id.decode() if isinstance(raw_id, bytes) else raw_id) for raw_id in timer_ids]
 
     async def request(self, *args: typing.Any, **kwargs: typing.Any) -> typing.NoReturn:
         msg = "Timers do not support request-reply"

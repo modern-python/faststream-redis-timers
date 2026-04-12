@@ -1,5 +1,5 @@
 import asyncio
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -43,3 +43,29 @@ async def test_future_timer_does_not_fire_immediately(broker: TimersBroker) -> N
     async with broker:
         await broker.publish("future", topic="topic", activate_in=timedelta(hours=1))
         await asyncio.sleep(0.3)
+
+
+async def test_fetch_redis_timers_returns_pending_timers(broker: TimersBroker) -> None:
+    pub = broker.publisher("topic")
+    async with broker:
+        await pub.publish("msg", timer_id="timer-1", activate_in=timedelta(hours=1))
+        result = await pub.fetch_redis_timers(datetime.now(tz=UTC) + timedelta(hours=2))
+    assert ("topic", "timer-1") in result
+
+
+async def test_fetch_redis_timers_excludes_not_yet_due(broker: TimersBroker) -> None:
+    pub = broker.publisher("topic")
+    async with broker:
+        await pub.publish("msg", timer_id="timer-1", activate_in=timedelta(hours=1))
+        result = await pub.fetch_redis_timers(datetime.now(tz=UTC))
+    assert result == []
+
+
+async def test_fetch_redis_timers_multiple_timers(broker: TimersBroker) -> None:
+    pub = broker.publisher("topic")
+    async with broker:
+        await pub.publish("a", timer_id="t1", activate_in=timedelta(hours=1))
+        await pub.publish("b", timer_id="t2", activate_in=timedelta(hours=2))
+        result = await pub.fetch_redis_timers(datetime.now(tz=UTC) + timedelta(hours=3))
+    timer_ids = {tid for _, tid in result}
+    assert timer_ids == {"t1", "t2"}
