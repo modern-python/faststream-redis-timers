@@ -58,3 +58,24 @@ await pub.publish("INV-001", timer_id="invoice-INV-001-due", activate_in=timedel
 # Later — cancel the timer via the publisher
 await pub.cancel("invoice-INV-001-due")
 ```
+
+## Inspecting pending timers
+
+`fetch_redis_timers(dt)` returns all timers on this publisher's topic that are due by `dt` as a list of `(topic, timer_id)` tuples. This is useful in service tests to assert that timers were scheduled correctly without waiting for them to fire.
+
+```python
+from datetime import UTC, datetime, timedelta
+
+pub = broker.publisher("invoices")
+await pub.publish("INV-001", timer_id="invoice-INV-001-due", activate_in=timedelta(days=30))
+
+# Assert the timer is scheduled
+pending = await pub.fetch_redis_timers(datetime.now(tz=UTC) + timedelta(days=31))
+assert ("invoices", "invoice-INV-001-due") in pending
+
+# Timers not yet due are excluded
+pending_now = await pub.fetch_redis_timers(datetime.now(tz=UTC))
+assert pending_now == []
+```
+
+In `TestTimersBroker`, `fetch_redis_timers` always returns `[]` because messages are delivered immediately — there are no pending timers to inspect.
