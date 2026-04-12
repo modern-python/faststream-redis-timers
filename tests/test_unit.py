@@ -1,14 +1,23 @@
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import faststream.asgi.factories.asyncapi.try_it_out
 import pytest
 from faststream.exceptions import IncorrectState
 
-from faststream_redis_timers import TimersBroker
+from faststream_redis_timers import TestTimersBroker, TimersBroker
 from faststream_redis_timers.broker import TimersParamsStorage
 from faststream_redis_timers.configs import ConnectionState
 from faststream_redis_timers.message import TimerStreamMessage
 from faststream_redis_timers.router import TimersRoute, TimersRoutePublisher, TimersRouter
+
+
+# --- AsyncAPI try_it_out registry ---
+
+
+def test_timers_broker_registered_in_try_it_out_registry() -> None:
+    registry = faststream.asgi.factories.asyncapi.try_it_out._get_broker_registry()  # noqa: SLF001
+    assert registry[TimersBroker] is TestTimersBroker
 
 
 # --- ConnectionState ---
@@ -192,6 +201,25 @@ def test_timers_route_and_route_publisher() -> None:
     pub = TimersRoutePublisher("my-topic")
     assert route is not None
     assert pub is not None
+
+
+# --- Subscriber._get_msgs lock not acquired ---
+
+
+async def test_get_msgs_skips_timer_when_lock_not_acquired() -> None:
+    client = AsyncMock()
+    client.zrangebyscore.return_value = [b"timer-1"]
+    broker = TimersBroker(client)
+    sub = broker.subscriber("topic")
+
+    with patch("faststream_redis_timers.subscriber.usecase.Lock") as mock_lock_cls:
+        mock_lock = AsyncMock()
+        mock_lock.acquire.return_value = False
+        mock_lock_cls.return_value = mock_lock
+
+        await sub._get_msgs(client)  # noqa: SLF001
+
+    client.hget.assert_not_awaited()
 
 
 # --- TimersPublisher.fetch_redis_timers ---
