@@ -57,10 +57,39 @@ async def test_broker_ping_when_redis_raises_returns_false() -> None:
     assert await broker.ping() is False
 
 
+async def test_broker_ping_when_redis_returns_false() -> None:
+    client = AsyncMock()
+    client.ping.return_value = False
+    broker = TimersBroker(client)
+    assert await broker.ping() is False
+
+
 async def test_broker_ping_success() -> None:
     client = AsyncMock()
     client.ping.return_value = True
     broker = TimersBroker(client)
+    assert await broker.ping() is True
+
+
+async def test_broker_ping_dead_task_returns_false() -> None:
+    client = AsyncMock()
+    client.ping.return_value = True
+    broker = TimersBroker(client)
+    sub = broker.subscriber("topic")
+    dead_task = MagicMock()
+    dead_task.done.return_value = True
+    sub.tasks = [dead_task]
+    assert await broker.ping() is False
+
+
+async def test_broker_ping_live_task_returns_true() -> None:
+    client = AsyncMock()
+    client.ping.return_value = True
+    broker = TimersBroker(client)
+    sub = broker.subscriber("topic")
+    live_task = MagicMock()
+    live_task.done.return_value = False
+    sub.tasks = [live_task]
     assert await broker.ping() is True
 
 

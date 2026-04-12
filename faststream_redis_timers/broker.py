@@ -147,9 +147,15 @@ class TimersBroker(
         except Exception:  # noqa: BLE001
             return False
         try:
-            return typing.cast("bool", await client.ping())
+            if not typing.cast("bool", await client.ping()):
+                return False
         except Exception:  # noqa: BLE001
             return False
+        for subscriber in self._subscribers:
+            for task in subscriber.tasks:
+                if task.done():
+                    return False
+        return True
 
     async def publish(
         self,
