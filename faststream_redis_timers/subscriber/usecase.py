@@ -158,7 +158,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
             await super().stop()
 
     @typing.override
-    async def get_one(self, *, timeout: float = 5.0) -> typing.NoReturn:  # noqa: ASYNC109
+    async def get_one(self, *, timeout: float = 5.0) -> typing.NoReturn:
         msg = "TimersBroker does not support get_one()"
         raise NotImplementedError(msg)
 

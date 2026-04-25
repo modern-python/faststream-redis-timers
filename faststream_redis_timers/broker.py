@@ -141,7 +141,7 @@ class TimersBroker(
         await super().start()
 
     @typing.override
-    async def ping(self, timeout: float | None = None) -> bool:  # noqa: ASYNC109
+    async def ping(self, timeout: float | None = None) -> bool:
         try:
             client = self.config.broker_config.connection.client
         except Exception:  # noqa: BLE001
