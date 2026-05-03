@@ -155,7 +155,7 @@ class TimersBroker(
                     return False
         return True
 
-    async def publish(
+    async def publish(  # noqa: PLR0913
         self,
         message: "SendableMessage" = None,
         topic: str = "",
@@ -163,6 +163,7 @@ class TimersBroker(
         timer_id: str = "",
         activate_in: timedelta = timedelta(0),
         correlation_id: str | None = None,
+        headers: dict[str, typing.Any] | None = None,
     ) -> None:
         if not timer_id:
             timer_id = gen_cor_id()
@@ -172,7 +173,8 @@ class TimersBroker(
             destination=f"{self.config.broker_config.prefix}{topic}",
             timer_id=timer_id,
             activate_in=activate_in,
-            correlation_id=correlation_id or gen_cor_id(),
+            correlation_id=correlation_id or timer_id,
+            headers=headers,
         )
         return typing.cast("None", await self._basic_publish(cmd, producer=self.config.producer))
 

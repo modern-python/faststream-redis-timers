@@ -44,7 +44,31 @@ The `publish()` method on a publisher accepts:
 | `message` | — | The message body (any serializable value) |
 | `timer_id` | auto UUID | Unique ID for the timer — use for idempotency |
 | `activate_in` | `timedelta(0)` | Delay before delivery (fires immediately if 0) |
-| `correlation_id` | auto UUID | Correlation ID for tracing |
+| `correlation_id` | auto UUID | Correlation ID for tracing — round-trips to the handler |
+| `headers` | `None` | `dict[str, Any]` of headers — round-trips to the handler |
+
+### Tracing & headers example
+
+```python
+from faststream import Context
+from faststream.message import StreamMessage
+
+pub = broker.publisher("orders")
+
+@broker.subscriber("orders")
+async def handle(
+    body: dict,
+    correlation_id: str = Context("message.correlation_id"),
+    tenant: str = Context("message.headers.x-tenant"),
+) -> None:
+    ...
+
+await pub.publish(
+    {"order_id": 42},
+    correlation_id="trace-abc-123",
+    headers={"x-tenant": "acme"},
+)
+```
 
 ## Cancelling timers via a publisher
 

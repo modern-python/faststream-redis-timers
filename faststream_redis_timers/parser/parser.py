@@ -1,8 +1,8 @@
-import json
 import typing
 
 from faststream.message import decode_message
 
+from faststream_redis_timers.envelope import TimerMessageFormat
 from faststream_redis_timers.message import TimerStreamMessage
 
 
@@ -16,26 +16,20 @@ class TimerParser:
         self._config = config
 
     async def parse_message(self, msg: "TimerMessage") -> TimerStreamMessage:
-        raw_data = msg["data"]
-        try:
-            envelope = json.loads(raw_data)
-            body = bytes.fromhex(envelope["b"])
-            content_type: str | None = envelope.get("ct")
-        except (json.JSONDecodeError, KeyError, ValueError):  # pragma: no cover
-            # Fallback: treat raw bytes as-is with no content_type
-            body = raw_data if isinstance(raw_data, bytes) else raw_data.encode()
-            content_type = None
+        body, headers = TimerMessageFormat.parse(msg["data"])
+        timer_id = msg["timer_id"]
         return TimerStreamMessage(
             raw_message=msg,
             body=body,
-            headers={},
-            content_type=content_type,
-            message_id=msg["timer_id"],
-            correlation_id=msg["timer_id"],
+            headers=headers,
+            content_type=headers.get("content-type"),
+            message_id=timer_id,
+            correlation_id=headers.get("correlation_id", timer_id),
+            reply_to=headers.get("reply_to", ""),
             client=self._config._outer_config.connection.client,  # noqa: SLF001
             timeline_key=self._config.topic_timeline_key,
             payloads_key=self._config.topic_payloads_key,
-            timer_id=msg["timer_id"],
+            timer_id=timer_id,
         )
 
     async def decode_message(self, msg: TimerStreamMessage) -> typing.Any:

@@ -13,8 +13,10 @@ When you publish a timer for topic `invoices` with `timer_id` `abc-123`, both ke
 
 ```
 ZADD timers_timeline:invoices <activation_ts> abc-123
-HSET timers_payloads:invoices abc-123 <encoded_body>
+HSET timers_payloads:invoices abc-123 <encoded_envelope>
 ```
+
+The envelope is FastStream's `BinaryMessageFormatV1` — a binary-safe wire format that carries the message body alongside `correlation_id`, `content-type`, `reply_to`, and any user-supplied headers. The same format is used by FastStream's built-in Redis broker.
 
 ## Polling loop
 
