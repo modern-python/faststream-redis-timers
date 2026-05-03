@@ -142,7 +142,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         self._log(log_level=logging.DEBUG, message=f"Fetched {len(timer_ids)} due timers")
         lease_ttl = self._config.timer_sub.lease_ttl
         for raw_id in timer_ids:
-            tg.start_soon(self._claim_and_consume, raw_id, lease_ttl, limiter)
+            tg.start_soon(self._claim_and_consume, raw_id, lease_ttl, limiter, client)
         return len(timer_ids)
 
     async def _claim_and_consume(
@@ -150,6 +150,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         raw_id: bytes | str,
         lease_ttl: int,
         limiter: anyio.CapacityLimiter,
+        client: "Redis[bytes]",
     ) -> None:
         try:
             async with limiter:
@@ -157,7 +158,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
                 claim_score = now + lease_ttl
                 timer_id = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
                 raw_payload: bytes | None = await eval_cached(
-                    self._client,
+                    client,
                     CLAIM_LUA,
                     CLAIM_SHA,
                     2,

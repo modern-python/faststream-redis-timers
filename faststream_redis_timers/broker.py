@@ -205,21 +205,32 @@ class TimersBroker(
         return score is not None
 
     async def get_pending_timers(self, topic: str, before: datetime | None = None) -> list[str]:
-        """Return pending timer IDs on *topic*. If *before* is given, restrict to timers due by then."""
+        """
+        Return pending timer IDs on *topic*. If *before* is given, restrict to timers due by then.
+
+        Note that timers currently being processed have their score pushed ``lease_ttl`` seconds
+        into the future, so they appear in the default (``before=None``) result but are excluded
+        once *before* is set to the current time.
+        """
         client = self.config.broker_config.connection.client
         score_max: str | float = before.timestamp() if before is not None else "+inf"
         raw_ids: list[bytes] = await client.zrangebyscore(self._topic_timeline_key(topic), "-inf", score_max)
         return [r.decode() if isinstance(r, bytes) else r for r in raw_ids]
 
     async def cancel_all(self, topic: str) -> int:
-        """Cancel every pending timer on *topic*. Returns the number removed."""
+        """
+        Cancel every pending timer on *topic*. Returns the number removed.
+
+        Handlers already executing for a leased timer continue to run to completion;
+        their final commit is a no-op because the keys are gone.
+        """
         client = self.config.broker_config.connection.client
         timeline_key = self._topic_timeline_key(topic)
         payloads_key = self._topic_payloads_key(topic)
         async with client.pipeline(transaction=True) as pipe:
             pipe.zcard(timeline_key)
-            pipe.delete(timeline_key)
-            pipe.delete(payloads_key)
+            pipe.unlink(timeline_key)
+            pipe.unlink(payloads_key)
             results = await pipe.execute()
         return int(results[0])
 
