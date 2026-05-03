@@ -57,7 +57,7 @@ You can configure polling behaviour per subscriber:
 @router.subscriber(
     "high-priority",
     polling_interval=0.01,   # poll every 10ms
-    max_concurrent=20,        # process up to 20 timers per cycle
+    max_concurrent=20,        # up to 20 handlers may run in parallel
     lease_ttl=60,             # hold lease for up to 60 seconds
 )
 async def handle_urgent(message: str) -> None: ...

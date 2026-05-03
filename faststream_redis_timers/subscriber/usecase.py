@@ -17,6 +17,7 @@ from faststream_redis_timers.subscriber.lua import CLAIM_LUA
 
 
 if typing.TYPE_CHECKING:
+    from anyio.abc import TaskGroup
     from faststream._internal.endpoint.publisher import PublisherProto
     from faststream._internal.endpoint.subscriber.call_item import CallsCollection
     from faststream.message import StreamMessage
@@ -85,60 +86,88 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
                 start_signal.set()
 
         connected = True
-        while self.running:
-            try:
-                await self._get_msgs(client)
-            except Exception as e:  # noqa: BLE001  # pragma: no cover
-                self._log(
-                    log_level=logging.ERROR,
-                    message="Message fetch error",
-                    exc_info=e,
-                )
-                if connected:
-                    connected = False
-                await anyio.sleep(5)
-            else:
-                if not connected:  # pragma: no cover
-                    connected = True
-            finally:
-                if not start_signal.is_set():
-                    with suppress(Exception):  # pragma: no cover
-                        start_signal.set()
+        limiter = anyio.CapacityLimiter(self._config.timer_sub.max_concurrent)
+        async with anyio.create_task_group() as tg:
+            while self.running:
+                try:
+                    await self._get_msgs(client, tg, limiter)
+                except Exception as e:  # noqa: BLE001  # pragma: no cover
+                    self._log(
+                        log_level=logging.ERROR,
+                        message="Message fetch error",
+                        exc_info=e,
+                    )
+                    if connected:
+                        connected = False
+                    await anyio.sleep(5)
+                else:
+                    if not connected:  # pragma: no cover
+                        connected = True
+                finally:
+                    if not start_signal.is_set():
+                        with suppress(Exception):  # pragma: no cover
+                            start_signal.set()
 
-    async def _get_msgs(self, client: "Redis[bytes]") -> None:
+    async def _get_msgs(
+        self,
+        client: "Redis[bytes]",
+        tg: "TaskGroup",
+        limiter: anyio.CapacityLimiter,
+    ) -> None:
+        stats = limiter.statistics()
+        free = int(limiter.total_tokens) - int(stats.borrowed_tokens) - int(stats.tasks_waiting)
+        if free <= 0:
+            await anyio.sleep(self._config.timer_sub.polling_interval)
+            return
+
         now = time.time()
-        max_batch = self._config.timer_sub.max_concurrent
         timer_ids: list[bytes] = await client.zrangebyscore(
-            self._config.topic_timeline_key, "-inf", now, start=0, num=max_batch
+            self._config.topic_timeline_key, "-inf", now, start=0, num=free
         )
 
         if not timer_ids:
             await anyio.sleep(self._config.timer_sub.polling_interval)
             return
 
-        claim_score = now + self._config.timer_sub.lease_ttl
-
+        lease_ttl = self._config.timer_sub.lease_ttl
         for raw_id in timer_ids:
-            timer_id = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
-            raw_payload: bytes | None = await client.eval(
-                CLAIM_LUA,
-                2,
-                self._config.topic_timeline_key,
-                self._config.topic_payloads_key,
-                timer_id,
-                now,
-                claim_score,
-            )
-            if raw_payload is None:
-                continue
+            tg.start_soon(self._claim_and_consume, raw_id, lease_ttl, limiter)
 
-            msg = TimerMessage(
-                type="timer",
-                channel=self._config.full_topic,
-                timer_id=timer_id,
-                data=raw_payload,
+    async def _claim_and_consume(
+        self,
+        raw_id: bytes | str,
+        lease_ttl: int,
+        limiter: anyio.CapacityLimiter,
+    ) -> None:
+        try:
+            async with limiter:
+                now = time.time()
+                claim_score = now + lease_ttl
+                timer_id = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
+                raw_payload: bytes | None = await self._client.eval(
+                    CLAIM_LUA,
+                    2,
+                    self._config.topic_timeline_key,
+                    self._config.topic_payloads_key,
+                    timer_id,
+                    now,
+                    claim_score,
+                )
+                if raw_payload is None:
+                    return
+                msg = TimerMessage(
+                    type="timer",
+                    channel=self._config.full_topic,
+                    timer_id=timer_id,
+                    data=raw_payload,
+                )
+                await self.consume(msg)
+        except Exception as e:  # noqa: BLE001  # pragma: no cover
+            self._log(
+                log_level=logging.ERROR,
+                message=f"Timer {raw_id!r} consume error",
+                exc_info=e,
             )
-            await self.consume(msg)
 
     @typing.override
     async def stop(self) -> None:
