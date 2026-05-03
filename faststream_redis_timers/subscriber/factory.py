@@ -15,6 +15,7 @@ def create_subscriber(  # noqa: PLR0913
     *,
     topic: str,
     polling_interval: float = 0.05,
+    max_polling_interval: float = 5.0,
     max_concurrent: int = 5,
     lease_ttl: int = 30,
     config: "TimersBrokerConfig",
@@ -25,6 +26,7 @@ def create_subscriber(  # noqa: PLR0913
     timer_sub = TimerSub(
         topic=topic,
         polling_interval=polling_interval,
+        max_polling_interval=max_polling_interval,
         max_concurrent=max_concurrent,
         lease_ttl=lease_ttl,
     )

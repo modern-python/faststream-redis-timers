@@ -1,4 +1,5 @@
 import logging
+import random
 import time
 import typing
 from collections.abc import Sequence
@@ -85,24 +86,32 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
             if await client.ping():
                 start_signal.set()
 
-        connected = True
+        base = self._config.timer_sub.polling_interval
+        max_idle = self._config.timer_sub.max_polling_interval
+        idle_count = 0
+        error_attempt = 0
+
         limiter = anyio.CapacityLimiter(self._config.timer_sub.max_concurrent)
         async with anyio.create_task_group() as tg:
             while self.running:
                 try:
-                    await self._get_msgs(client, tg, limiter)
+                    fetched = await self._get_msgs(client, tg, limiter)
                 except Exception as e:  # noqa: BLE001  # pragma: no cover
-                    self._log(
-                        log_level=logging.ERROR,
-                        message="Message fetch error",
-                        exc_info=e,
-                    )
-                    if connected:
-                        connected = False
-                    await anyio.sleep(5)
+                    self._log(log_level=logging.ERROR, message="Message fetch error", exc_info=e)
+                    error_attempt += 1
+                    delay = min(2.0 ** (error_attempt - 1), 30.0) * random.uniform(0.5, 1.5)  # noqa: S311
+                    await anyio.sleep(delay)
                 else:
-                    if not connected:  # pragma: no cover
-                        connected = True
+                    error_attempt = 0
+                    if fetched > 0:
+                        idle_count = 0
+                    elif fetched == 0:
+                        idle_count += 1
+                        delay = min(base * (2.0 ** (idle_count - 1)), max_idle) * random.uniform(0.5, 1.5)  # noqa: S311
+                        await anyio.sleep(delay)
+                    else:
+                        # back-pressured (limiter saturated): yield briefly without growing idle counter
+                        await anyio.sleep(base)
                 finally:
                     if not start_signal.is_set():
                         with suppress(Exception):  # pragma: no cover
@@ -113,26 +122,25 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         client: "Redis[bytes]",
         tg: "TaskGroup",
         limiter: anyio.CapacityLimiter,
-    ) -> None:
+    ) -> int:
+        """Fetch and dispatch due timers. Return count fetched, or -1 if back-pressured."""
         stats = limiter.statistics()
         free = int(limiter.total_tokens) - int(stats.borrowed_tokens) - int(stats.tasks_waiting)
         if free <= 0:
-            await anyio.sleep(self._config.timer_sub.polling_interval)
-            return
+            return -1
 
         now = time.time()
         timer_ids: list[bytes] = await client.zrangebyscore(
             self._config.topic_timeline_key, "-inf", now, start=0, num=free
         )
-
         if not timer_ids:
-            await anyio.sleep(self._config.timer_sub.polling_interval)
-            return
+            return 0
 
         self._log(log_level=logging.DEBUG, message=f"Fetched {len(timer_ids)} due timers")
         lease_ttl = self._config.timer_sub.lease_ttl
         for raw_id in timer_ids:
             tg.start_soon(self._claim_and_consume, raw_id, lease_ttl, limiter)
+        return len(timer_ids)
 
     async def _claim_and_consume(
         self,

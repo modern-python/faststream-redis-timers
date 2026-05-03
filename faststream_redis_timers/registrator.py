@@ -19,6 +19,7 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
         topic: str,
         *,
         polling_interval: float = 0.05,
+        max_polling_interval: float = 5.0,
         max_concurrent: int = 5,
         lease_ttl: int = 30,
         dependencies: Iterable[Dependant] = (),
@@ -32,6 +33,7 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
         subscriber = create_subscriber(
             topic=topic,
             polling_interval=polling_interval,
+            max_polling_interval=max_polling_interval,
             max_concurrent=max_concurrent,
             lease_ttl=lease_ttl,
             config=self.config,  # ty: ignore[invalid-argument-type]

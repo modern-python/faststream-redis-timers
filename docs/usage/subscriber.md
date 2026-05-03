@@ -63,19 +63,23 @@ Configure polling behaviour per subscriber:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `polling_interval` | `0.05` s | How often to poll when no timers are due |
+| `polling_interval` | `0.05` s | Base poll interval; the floor used when the queue has work |
+| `max_polling_interval` | `5.0` s | Cap for adaptive idle backoff (doubles per empty cycle, ±50% jitter) |
 | `max_concurrent` | `5` | Max handlers running in parallel; also caps fetch batch size per poll |
 | `lease_ttl` | `30` s | How long a worker holds the lease before another worker may re-claim |
 
 ```python
 @broker.subscriber(
     "high-priority",
-    polling_interval=0.01,   # poll every 10ms
-    max_concurrent=20,        # up to 20 handlers may run in parallel
-    lease_ttl=60,             # hold lease for up to 60 seconds
+    polling_interval=0.01,        # poll every 10ms when busy
+    max_polling_interval=0.5,     # never sleep longer than 500ms when idle
+    max_concurrent=20,            # up to 20 handlers may run in parallel
+    lease_ttl=60,                 # hold lease for up to 60 seconds
 )
 async def handle_urgent(body: str) -> None: ...
 ```
+
+The poll loop uses adaptive backoff: when there are no due timers, the next sleep doubles from `polling_interval` up to `max_polling_interval` and is multiplied by a random factor in `[0.5, 1.5]` to avoid thundering-herd bursts across worker fleets. The counter resets the moment a poll returns work. Worst-case delivery latency for a newly-published timer in a previously-idle queue is `max_polling_interval × 1.5`.
 
 !!! warning "Handlers must be idempotent and concurrency-safe"
     A handler that runs longer than `lease_ttl`, or a worker that crashes after the handler ran but before the commit landed, may cause the timer to be delivered more than once. Design handlers to be safe under retry. Because `max_concurrent` invocations run in parallel, handlers must also be safe under concurrent execution (no unsynchronized shared state).
