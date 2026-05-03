@@ -1,3 +1,4 @@
+import asyncio
 import warnings
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
@@ -5,12 +6,14 @@ from unittest.mock import AsyncMock, MagicMock
 import faststream.asgi.factories.asyncapi.try_it_out
 import pytest
 from faststream.exceptions import IncorrectState
+from redis.exceptions import NoScriptError
 
 from faststream_redis_timers import TestTimersBroker, TimersBroker
 from faststream_redis_timers.broker import TimersParamsStorage
 from faststream_redis_timers.configs import ConnectionState
 from faststream_redis_timers.message import TimerStreamMessage
 from faststream_redis_timers.router import TimersRoute, TimersRoutePublisher, TimersRouter
+from faststream_redis_timers.subscriber.lua import eval_cached
 
 
 # --- AsyncAPI try_it_out registry ---
@@ -271,6 +274,38 @@ def test_duplicate_subscriber_warns() -> None:
 
         @broker.subscriber("same")
         async def second(body: str) -> None: ...
+
+
+# --- _consume start_signal fallback (covers finally-branch) ---
+
+
+async def test_consume_sets_start_signal_when_ping_returns_false() -> None:
+    """If client.ping() returns falsy, start_signal is set by the finally branch on first poll."""
+    client = AsyncMock()
+    client.ping.return_value = False
+    client.zrangebyscore.return_value = []
+    broker = TimersBroker(client, start_timeout=2.0)
+
+    @broker.subscriber("topic", polling_interval=0.05)
+    async def handler(body: str) -> None: ...
+
+    async with broker:
+        await asyncio.sleep(0.05)
+
+
+# --- eval_cached NOSCRIPT fallback (O1) ---
+
+
+async def test_eval_cached_falls_back_on_noscript() -> None:
+    client = AsyncMock()
+    client.evalsha.side_effect = [NoScriptError("NOSCRIPT"), b"ok"]
+    client.script_load.return_value = "abc123"
+
+    result = await eval_cached(client, "return 1", "abc123", 0)
+
+    assert result == b"ok"
+    assert client.evalsha.await_count == 2
+    client.script_load.assert_awaited_once_with("return 1")
 
 
 def test_distinct_topics_do_not_warn() -> None:

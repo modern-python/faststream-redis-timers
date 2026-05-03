@@ -14,7 +14,11 @@ from faststream.specification.schema import Message, Operation, SubscriberSpec
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.parser.parser import TimerParser
 from faststream_redis_timers.subscriber.config import TimersSubscriberConfig, TimersSubscriberSpecificationConfig
-from faststream_redis_timers.subscriber.lua import CLAIM_LUA
+from faststream_redis_timers.subscriber.lua import CLAIM_LUA, CLAIM_SHA, eval_cached
+
+
+# Cap exponent so 2 ** count cannot overflow into useless float ops once delay is at the cap.
+_BACKOFF_EXP_CAP = 30
 
 
 if typing.TYPE_CHECKING:
@@ -98,24 +102,23 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
                     fetched = await self._get_msgs(client, tg, limiter)
                 except Exception as e:  # noqa: BLE001  # pragma: no cover
                     self._log(log_level=logging.ERROR, message="Message fetch error", exc_info=e)
-                    error_attempt += 1
-                    delay = min(2.0 ** (error_attempt - 1), 30.0) * random.uniform(0.5, 1.5)  # noqa: S311
+                    error_attempt = min(error_attempt + 1, _BACKOFF_EXP_CAP)
+                    delay = min(2.0 ** (error_attempt - 1) * random.uniform(0.5, 1.5), 30.0)  # noqa: S311
                     await anyio.sleep(delay)
                 else:
                     error_attempt = 0
                     if fetched > 0:
                         idle_count = 0
                     elif fetched == 0:
-                        idle_count += 1
-                        delay = min(base * (2.0 ** (idle_count - 1)), max_idle) * random.uniform(0.5, 1.5)  # noqa: S311
+                        idle_count = min(idle_count + 1, _BACKOFF_EXP_CAP)
+                        delay = min(base * (2.0 ** (idle_count - 1)) * random.uniform(0.5, 1.5), max_idle)  # noqa: S311
                         await anyio.sleep(delay)
                     else:
                         # back-pressured (limiter saturated): yield briefly without growing idle counter
                         await anyio.sleep(base)
                 finally:
                     if not start_signal.is_set():
-                        with suppress(Exception):  # pragma: no cover
-                            start_signal.set()
+                        start_signal.set()
 
     async def _get_msgs(
         self,
@@ -153,8 +156,10 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
                 now = time.time()
                 claim_score = now + lease_ttl
                 timer_id = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
-                raw_payload: bytes | None = await self._client.eval(
+                raw_payload: bytes | None = await eval_cached(
+                    self._client,
                     CLAIM_LUA,
+                    CLAIM_SHA,
                     2,
                     self._config.topic_timeline_key,
                     self._config.topic_payloads_key,
