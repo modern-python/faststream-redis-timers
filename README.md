@@ -102,8 +102,12 @@ Per-subscriber knobs (passed to `@broker.subscriber("topic", ...)`):
 - `lease_ttl` (default `30` seconds) — how long a worker holds the lease while
   processing. Handlers must complete within this window or another worker may
   re-deliver the timer (duplicate). Increase if your handlers are slow.
-- `polling_interval` (default `0.05` s) — how often the subscriber checks
-  Redis for due timers when the queue is empty. Increase to reduce idle load.
+- `polling_interval` (default `0.05` s) — base poll interval used when the queue
+  has work or just transitioned from idle. Doubles on each consecutive empty
+  cycle, capped at `max_polling_interval`, with ±50% jitter applied each sleep.
+- `max_polling_interval` (default `5.0` s) — ceiling for the adaptive idle
+  backoff. Lower it for tighter delivery latency on idle queues; raise it to
+  reduce Redis load on workloads with long idle stretches.
 - `max_concurrent` (default `5`) — maximum number of handlers running in
   parallel per subscriber. Also caps the fetch batch size per poll cycle.
   Handlers must be safe under concurrency in addition to being idempotent.
