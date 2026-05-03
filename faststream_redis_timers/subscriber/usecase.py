@@ -129,6 +129,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
             await anyio.sleep(self._config.timer_sub.polling_interval)
             return
 
+        self._log(log_level=logging.DEBUG, message=f"Fetched {len(timer_ids)} due timers")
         lease_ttl = self._config.timer_sub.lease_ttl
         for raw_id in timer_ids:
             tg.start_soon(self._claim_and_consume, raw_id, lease_ttl, limiter)
@@ -154,6 +155,10 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
                     claim_score,
                 )
                 if raw_payload is None:
+                    self._log(
+                        log_level=logging.DEBUG,
+                        message=f"Timer {timer_id!r} claim contested (already leased or canceled)",
+                    )
                     return
                 msg = TimerMessage(
                     type="timer",
@@ -161,6 +166,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
                     timer_id=timer_id,
                     data=raw_payload,
                 )
+                self._log(log_level=logging.DEBUG, message=f"Timer {timer_id!r} delivered to handler")
                 await self.consume(msg)
         except Exception as e:  # noqa: BLE001  # pragma: no cover
             self._log(
