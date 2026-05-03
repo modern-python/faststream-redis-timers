@@ -25,6 +25,12 @@ jobs:
 
   pytest:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.13"
+          - "3.14"
     services:
       redis:
         image: redis:8
@@ -37,9 +43,12 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
-      - run: uv python install 3.13
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - run: uv python install ${{ matrix.python-version }}
       - run: |
           uv sync --all-extras --no-install-project
           uv run --no-sync pytest . --cov=. --cov-report xml
@@ -47,3 +56,10 @@ jobs:
           PYTHONDONTWRITEBYTECODE: 1
           PYTHONUNBUFFERED: 1
           REDIS_URL: redis://127.0.0.1:6379/0
+      - uses: codecov/codecov-action@v4.0.1
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-${{ matrix.python-version }}
