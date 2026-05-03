@@ -37,13 +37,14 @@ async def handle_order(order_id: str) -> None:
 
 ## Publisher options
 
-The `publish()` method on a publisher accepts:
+The `publish()` method on a publisher accepts the parameters below and returns the resolved `timer_id` (generated or provided):
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `message` | — | The message body (any serializable value) |
 | `timer_id` | auto UUID | Unique ID for the timer — use for idempotency |
 | `activate_in` | `timedelta(0)` | Delay before delivery (fires immediately if 0) |
+| `activate_at` | `None` | Absolute timezone-aware datetime to fire at. Mutually exclusive with `activate_in` |
 | `correlation_id` | auto UUID | Correlation ID for tracing — round-trips to the handler |
 | `headers` | `None` | `dict[str, Any]` of headers — round-trips to the handler |
 
@@ -72,15 +73,15 @@ await pub.publish(
 
 ## Cancelling timers via a publisher
 
-Publishers expose a `cancel(timer_id)` method that cancels a pending timer on the same topic. This is a no-op if the timer has already fired or does not exist:
+Publishers expose a `cancel(timer_id)` method that cancels a pending timer on the same topic. This is a no-op if the timer has already fired or does not exist. Capture the `timer_id` from `publish()`:
 
 ```python
 pub = broker.publisher("invoices")
 
-await pub.publish("INV-001", timer_id="invoice-INV-001-due", activate_in=timedelta(days=30))
+timer_id = await pub.publish("INV-001", activate_in=timedelta(days=30))
 
 # Later — cancel the timer via the publisher
-await pub.cancel("invoice-INV-001-due")
+await pub.cancel(timer_id)
 ```
 
 ## Inspecting pending timers

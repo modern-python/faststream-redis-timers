@@ -1,5 +1,4 @@
 import typing
-from datetime import UTC, datetime
 
 from faststream_redis_timers.envelope import TimerMessageFormat
 from faststream_redis_timers.response import TimerPublishCommand
@@ -41,7 +40,7 @@ class TimersProducer:
 
         timeline_key = f"{self._timeline_key}:{cmd.destination}"
         payloads_key = f"{self._payloads_key}:{cmd.destination}"
-        activation_ts = (datetime.now(tz=UTC) + cmd.activate_in).timestamp()
+        activation_ts = cmd.activate_at.timestamp()
 
         async with client.pipeline(transaction=True) as pipe:
             pipe.zadd(timeline_key, {cmd.timer_id: activation_ts})

@@ -31,6 +31,19 @@ async def schedule() -> None:
     )
 ```
 
+Schedule at an absolute time with `activate_at` instead. `publish()` returns the
+resolved `timer_id` so you can keep it for cancellation:
+
+```python
+from datetime import UTC, datetime
+
+timer_id = await broker.publish(
+    "INV-001",
+    topic="invoices",
+    activate_at=datetime(2026, 6, 1, 9, tzinfo=UTC),
+)
+```
+
 ## How it works
 
 Timers are stored in Redis as two structures:
@@ -51,8 +64,8 @@ handlers**.
 ## Cancellation
 
 ```python
-await broker.publish("INV-001", topic="invoices", timer_id="inv-1", activate_in=timedelta(days=30))
-await broker.cancel_timer("invoices", "inv-1")
+timer_id = await broker.publish("INV-001", topic="invoices", activate_in=timedelta(days=30))
+await broker.cancel_timer("invoices", timer_id)
 ```
 
 ## Tracing & headers

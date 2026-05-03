@@ -9,7 +9,7 @@ from faststream.specification.asyncapi.utils import resolve_payloads
 from faststream.specification.schema import Message, Operation, PublisherSpec
 
 from faststream_redis_timers.publisher.config import TimersPublisherConfig, TimersPublisherSpecificationConfig
-from faststream_redis_timers.response import TimerPublishCommand
+from faststream_redis_timers.response import TimerPublishCommand, resolve_activate_at
 
 
 if typing.TYPE_CHECKING:
@@ -51,15 +51,16 @@ class TimersPublisher(PublisherUsecase):
         super().__init__(config, specification)  # ty: ignore[invalid-argument-type]
         self.config = config
 
-    async def publish(
+    async def publish(  # noqa: PLR0913
         self,
         message: "SendableMessage" = None,
         *,
         timer_id: str = "",
         activate_in: timedelta = timedelta(0),
+        activate_at: datetime | None = None,
         correlation_id: str | None = None,
         headers: dict[str, typing.Any] | None = None,
-    ) -> None:
+    ) -> str:
         if not timer_id:
             timer_id = gen_cor_id()
 
@@ -68,7 +69,7 @@ class TimersPublisher(PublisherUsecase):
             _publish_type=PublishType.PUBLISH,
             destination=self.config.full_topic,
             timer_id=timer_id,
-            activate_in=activate_in,
+            activate_at=resolve_activate_at(activate_in, activate_at),
             correlation_id=correlation_id or timer_id,
             headers=headers,
         )
@@ -77,6 +78,7 @@ class TimersPublisher(PublisherUsecase):
             producer=self.config._outer_config.producer,  # noqa: SLF001
             _extra_middlewares=(),
         )
+        return timer_id
 
     async def _publish(
         self,

@@ -73,7 +73,6 @@ async def test_publisher_internal_publish(broker: TimersBroker) -> None:
             _publish_type=PublishType.PUBLISH,
             destination=pub.config.full_topic,
             timer_id="internal-id",
-            activate_in=timedelta(0),
             correlation_id="corr-id",
         )
         await pub._publish(cmd, _extra_middlewares=())  # noqa: SLF001
