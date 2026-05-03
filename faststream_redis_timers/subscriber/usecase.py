@@ -76,7 +76,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         start_signal = anyio.Event()
         if self.calls:
             self.add_task(self._consume, (self._client,), {"start_signal": start_signal})
-            with anyio.fail_after(3.0):
+            with anyio.fail_after(self._outer_config.start_timeout):
                 await start_signal.wait()
         else:
             start_signal.set()

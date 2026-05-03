@@ -79,10 +79,15 @@ async def schedule_reminder() -> None:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `client` | `None` | `redis.asyncio.Redis` client instance |
+| `client` | `None` | `redis.asyncio.Redis` client instance — the caller owns its lifecycle (the broker does not close it) |
 | `timeline_key` | `timers_timeline` | Sorted set key name |
 | `payloads_key` | `timers_payloads` | Hash key name |
+| `start_timeout` | `3.0` | Seconds to wait for the subscriber's first Redis ping during startup |
 | `graceful_timeout` | `15.0` | Seconds to wait for in-flight timers on shutdown |
+
+`TimersBroker` does not call `.aclose()` on the supplied client — wrap it in
+`async with Redis.from_url(...) as client:` (or your own `try/finally`) so the
+connection is released when the application stops.
 
 ## Timer IDs
 

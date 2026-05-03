@@ -65,6 +65,16 @@ class TimersBroker(
         BrokerConfig,  # Use BrokerConfig to avoid typing issues when passing to FastStream app
     ],
 ):
+    """
+    FastStream broker for Redis-backed distributed timer scheduling.
+
+    The supplied Redis client is *not* closed by the broker; the caller owns the
+    client's lifecycle. Use ``async with Redis.from_url(...) as client:`` (or call
+    ``await client.aclose()`` in a ``finally`` block) so the connection is released
+    when your application shuts down. The same client may be shared across multiple
+    brokers; making the broker close it would break that pattern.
+    """
+
     _subscribers: list[TimersSubscriber]
     _publishers: list[TimersPublisher]
 
@@ -74,6 +84,7 @@ class TimersBroker(
         *,
         timeline_key: str = "timers_timeline",
         payloads_key: str = "timers_payloads",
+        start_timeout: float = 3.0,
         decoder: CustomCallable | None = None,
         parser: CustomCallable | None = None,
         dependencies: Iterable[Dependant] = (),
@@ -95,6 +106,7 @@ class TimersBroker(
             connection=connection,
             timeline_key=timeline_key,
             payloads_key=payloads_key,
+            start_timeout=start_timeout,
             broker_middlewares=middlewares,
             broker_parser=parser,
             broker_decoder=decoder,

@@ -95,6 +95,20 @@ async def handle(
     ...
 ```
 
+## Connection ownership
+
+`TimersBroker` does **not** close the Redis client you pass in — the caller owns
+its lifecycle. The same client can be shared across multiple brokers, so closing
+it from one broker would surprise the others. Manage the client with `async with`
+or a `try/finally`:
+
+```python
+async with Redis.from_url("redis://localhost:6379") as client:
+    broker = TimersBroker(client)
+    app = FastStream(broker)
+    await app.run()
+```
+
 ## Tuning
 
 Per-subscriber knobs (passed to `@broker.subscriber("topic", ...)`):
