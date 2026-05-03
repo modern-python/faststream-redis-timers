@@ -58,7 +58,7 @@ You can configure polling behaviour per subscriber:
     "high-priority",
     polling_interval=0.01,   # poll every 10ms
     max_concurrent=20,        # process up to 20 timers per cycle
-    lock_ttl=60,              # hold lock for up to 60 seconds
+    lease_ttl=60,             # hold lease for up to 60 seconds
 )
 async def handle_urgent(message: str) -> None: ...
 ```

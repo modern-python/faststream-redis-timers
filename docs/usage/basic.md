@@ -72,7 +72,6 @@ async def schedule_reminder() -> None:
 | `client` | `None` | `redis.asyncio.Redis` client instance |
 | `timeline_key` | `timers_timeline` | Sorted set key name |
 | `payloads_key` | `timers_payloads` | Hash key name |
-| `lock_prefix` | `timers_lock:` | Distributed lock key prefix |
 | `graceful_timeout` | `15.0` | Seconds to wait for in-flight timers on shutdown |
 
 ## Timer IDs

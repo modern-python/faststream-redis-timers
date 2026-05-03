@@ -9,11 +9,11 @@ from faststream._internal.endpoint.subscriber import SubscriberSpecification, Su
 from faststream._internal.endpoint.subscriber.mixins import TasksMixin
 from faststream.specification.asyncapi.utils import resolve_payloads
 from faststream.specification.schema import Message, Operation, SubscriberSpec
-from redis.asyncio.lock import Lock
 
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.parser.parser import TimerParser
 from faststream_redis_timers.subscriber.config import TimersSubscriberConfig, TimersSubscriberSpecificationConfig
+from faststream_redis_timers.subscriber.lua import CLAIM_LUA
 
 
 if typing.TYPE_CHECKING:
@@ -107,50 +107,38 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
 
     async def _get_msgs(self, client: "Redis[bytes]") -> None:
         now = time.time()
-        timer_ids: list[bytes] = await client.zrangebyscore(self._config.topic_timeline_key, "-inf", now)
+        max_batch = self._config.timer_sub.max_concurrent
+        timer_ids: list[bytes] = await client.zrangebyscore(
+            self._config.topic_timeline_key, "-inf", now, start=0, num=max_batch
+        )
 
         if not timer_ids:
             await anyio.sleep(self._config.timer_sub.polling_interval)
             return
 
-        count = 0
+        claim_score = now + self._config.timer_sub.lease_ttl
+
         for raw_id in timer_ids:
-            if count >= self._config.timer_sub.max_concurrent:
-                break
-
             timer_id = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
-            lock = Lock(
-                client,
-                f"{self._config.lock_prefix}{self._config.full_topic}:{timer_id}",
-                timeout=self._config.timer_sub.lock_ttl,
-                blocking=False,
+            raw_payload: bytes | None = await client.eval(
+                CLAIM_LUA,
+                2,
+                self._config.topic_timeline_key,
+                self._config.topic_payloads_key,
+                timer_id,
+                now,
+                claim_score,
             )
-
-            acquired = await lock.acquire()
-            if not acquired:
+            if raw_payload is None:
                 continue
 
-            try:
-                raw_payload: bytes | None = await client.hget(self._config.topic_payloads_key, timer_id)
-                if raw_payload is None:
-                    await client.zrem(self._config.topic_timeline_key, timer_id)
-                    continue
-
-                async with client.pipeline(transaction=True) as pipe:
-                    pipe.zrem(self._config.topic_timeline_key, timer_id)
-                    pipe.hdel(self._config.topic_payloads_key, timer_id)
-                    await pipe.execute()
-
-                msg = TimerMessage(
-                    type="timer",
-                    channel=self._config.full_topic,
-                    timer_id=timer_id,
-                    data=raw_payload,
-                )
-                await self.consume(msg)
-                count += 1
-            finally:
-                await lock.release()
+            msg = TimerMessage(
+                type="timer",
+                channel=self._config.full_topic,
+                timer_id=timer_id,
+                data=raw_payload,
+            )
+            await self.consume(msg)
 
     @typing.override
     async def stop(self) -> None:

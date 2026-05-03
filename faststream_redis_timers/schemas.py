@@ -8,4 +8,4 @@ class TimerSub:
     topic: str
     polling_interval: float = 0.05
     max_concurrent: int = 5
-    lock_ttl: int = 30
+    lease_ttl: int = 30

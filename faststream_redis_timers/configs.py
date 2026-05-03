@@ -32,7 +32,6 @@ class TimersBrokerConfig(BrokerConfig):
     connection: ConnectionState
     timeline_key: str = "timers_timeline"
     payloads_key: str = "timers_payloads"
-    lock_prefix: str = "timers_lock:"
 
     async def connect(self) -> None:
         await self.connection.connect()

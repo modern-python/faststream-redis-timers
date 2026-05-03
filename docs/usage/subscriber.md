@@ -65,17 +65,20 @@ Configure polling behaviour per subscriber:
 |-----------|---------|-------------|
 | `polling_interval` | `0.05` s | How often to poll when no timers are due |
 | `max_concurrent` | `5` | Max timers processed per poll cycle |
-| `lock_ttl` | `30` s | Distributed lock expiry in seconds |
+| `lease_ttl` | `30` s | How long a worker holds the lease before another worker may re-claim |
 
 ```python
 @broker.subscriber(
     "high-priority",
     polling_interval=0.01,   # poll every 10ms
     max_concurrent=20,        # process up to 20 timers per cycle
-    lock_ttl=60,              # hold lock for up to 60 seconds
+    lease_ttl=60,             # hold lease for up to 60 seconds
 )
 async def handle_urgent(body: str) -> None: ...
 ```
+
+!!! warning "Handlers must be idempotent"
+    A handler that runs longer than `lease_ttl`, or a worker that crashes after the handler ran but before the commit landed, may cause the timer to be delivered more than once. Design handlers to be safe under retry.
 
 ## Ack policy
 

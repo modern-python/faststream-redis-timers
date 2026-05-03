@@ -4,7 +4,7 @@ Welcome to the `faststream-redis-timers` documentation!
 
 `faststream-redis-timers` is a [FastStream](https://faststream.airt.ai) broker integration for Redis-backed distributed timer scheduling.
 
-Schedule messages to be delivered to subscribers at a future point in time — reliably, with distributed locking so no timer fires twice.
+Schedule messages to be delivered to subscribers at a future point in time, with **at-least-once** delivery across multiple workers.
 
 ---
 
