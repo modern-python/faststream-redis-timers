@@ -1,5 +1,7 @@
 import typing
 from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime
 from unittest.mock import AsyncMock
 
 from faststream._internal.testing.broker import TestBroker, change_producer
@@ -17,7 +19,25 @@ if typing.TYPE_CHECKING:
     from collections.abc import Iterator
 
 
+@dataclass(frozen=True, slots=True)
+class ScheduledTimer:
+    """Record of a publish call captured by `TestTimersBroker.scheduled_timers`."""
+
+    topic: str
+    timer_id: str
+    activate_at: datetime
+    body: typing.Any
+    correlation_id: str = ""
+    headers: dict[str, typing.Any] | None = None
+
+
 class TestTimersBroker(TestBroker[TimersBroker]):
+    scheduled_timers: list[ScheduledTimer]
+
+    def __init__(self, broker: TimersBroker, **kwargs: typing.Any) -> None:
+        super().__init__(broker, **kwargs)
+        self.scheduled_timers = []
+
     @staticmethod
     def create_publisher_fake_subscriber(
         broker: TimersBroker,
@@ -37,23 +57,30 @@ class TestTimersBroker(TestBroker[TimersBroker]):
 
     @contextmanager
     def _patch_producer(self, broker: TimersBroker) -> "Iterator[None]":
-        with change_producer(broker.config.broker_config, FakeTimersProducer(broker)):
+        producer = FakeTimersProducer(broker, scheduled_timers=self.scheduled_timers)
+        with change_producer(broker.config.broker_config, producer):
             yield
 
     @contextmanager
     def _patch_broker(self, broker: TimersBroker) -> "Iterator[None]":
         mock_client = AsyncMock()
         mock_client.zrangebyscore.return_value = []
-        broker.config.broker_config.connection._client = mock_client  # noqa: SLF001
-        with super()._patch_broker(broker):
-            yield
+        connection = broker.config.broker_config.connection
+        original_client = connection._client  # noqa: SLF001
+        connection._client = mock_client  # noqa: SLF001
+        try:
+            with super()._patch_broker(broker):
+                yield
+        finally:
+            connection._client = original_client  # noqa: SLF001
 
     async def _fake_connect(self, broker: TimersBroker, *args: typing.Any, **kwargs: typing.Any) -> None: ...
 
 
 class FakeTimersProducer(TimersProducer):
-    def __init__(self, broker: TimersBroker) -> None:
+    def __init__(self, broker: TimersBroker, scheduled_timers: list[ScheduledTimer] | None = None) -> None:
         self.broker = broker
+        self.scheduled_timers = scheduled_timers if scheduled_timers is not None else []
 
     async def publish(self, cmd: TimerPublishCommand) -> None:
         payload = TimerMessageFormat.encode(
@@ -66,7 +93,18 @@ class FakeTimersProducer(TimersProducer):
         topic = cmd.destination
         timer_id = cmd.timer_id or ""
 
-        # In tests we deliver immediately regardless of activate_in
+        self.scheduled_timers.append(
+            ScheduledTimer(
+                topic=topic,
+                timer_id=timer_id,
+                activate_at=cmd.activate_at,
+                body=cmd.body,
+                correlation_id=cmd.correlation_id or "",
+                headers=cmd.headers,
+            )
+        )
+
+        # In tests we deliver immediately regardless of activate_at
         msg = TimerMessage(
             type="timer",
             channel=topic,

@@ -1,8 +1,8 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from faststream_redis_timers import TestTimersBroker, TimersBroker
+from faststream_redis_timers import ScheduledTimer, TestTimersBroker, TimersBroker
 
 
 async def test_fake_broker_subscriber() -> None:
@@ -85,3 +85,88 @@ async def test_fake_broker_fetch_redis_timers_returns_empty() -> None:
     async with TestTimersBroker(broker):
         result = await pub.fetch_redis_timers(datetime.now(tz=UTC))
     assert result == []
+
+
+# --- scheduled_timers inspection (U8) ---
+
+
+async def test_scheduled_timers_records_publish() -> None:
+    broker = TimersBroker()
+
+    @broker.subscriber("reminders")
+    async def handler(body: str) -> None: ...
+
+    test_broker = TestTimersBroker(broker)
+    async with test_broker:
+        await broker.publish("hi", topic="reminders", timer_id="t-1")
+
+    assert len(test_broker.scheduled_timers) == 1
+    record = test_broker.scheduled_timers[0]
+    assert record.topic == "reminders"
+    assert record.timer_id == "t-1"
+    assert record.body == "hi"
+
+
+async def test_scheduled_timers_captures_activate_at() -> None:
+    broker = TimersBroker()
+
+    @broker.subscriber("reminders")
+    async def handler(body: str) -> None: ...
+
+    target = datetime.now(tz=UTC) + timedelta(days=7)
+    test_broker = TestTimersBroker(broker)
+    async with test_broker:
+        await broker.publish("call dentist", topic="reminders", timer_id="t-1", activate_at=target)
+
+    assert test_broker.scheduled_timers[0].activate_at == target
+
+
+async def test_scheduled_timers_captures_correlation_and_headers() -> None:
+    broker = TimersBroker()
+
+    @broker.subscriber("orders")
+    async def handler(body: dict) -> None: ...
+
+    test_broker = TestTimersBroker(broker)
+    async with test_broker:
+        await broker.publish(
+            {"order_id": 1},
+            topic="orders",
+            timer_id="t-1",
+            correlation_id="trace-abc",
+            headers={"x-tenant": "acme"},
+        )
+
+    assert test_broker.scheduled_timers == [
+        ScheduledTimer(
+            topic="orders",
+            timer_id="t-1",
+            activate_at=test_broker.scheduled_timers[0].activate_at,
+            body={"order_id": 1},
+            correlation_id="trace-abc",
+            headers={"x-tenant": "acme"},
+        )
+    ]
+
+
+async def test_scheduled_timers_records_multiple_in_order() -> None:
+    broker = TimersBroker()
+
+    @broker.subscriber("topic")
+    async def handler(body: str) -> None: ...
+
+    test_broker = TestTimersBroker(broker)
+    async with test_broker:
+        await broker.publish("a", topic="topic", timer_id="ta")
+        await broker.publish("b", topic="topic", timer_id="tb")
+        await broker.publish("c", topic="topic", timer_id="tc")
+
+    assert [s.timer_id for s in test_broker.scheduled_timers] == ["ta", "tb", "tc"]
+
+
+async def test_scheduled_timers_empty_initially() -> None:
+    broker = TimersBroker()
+    test_broker = TestTimersBroker(broker)
+    async with test_broker:
+        pass
+    assert test_broker.scheduled_timers == []

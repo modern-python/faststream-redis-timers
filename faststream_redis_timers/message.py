@@ -3,7 +3,7 @@ from typing import TypedDict
 
 from faststream.message import StreamMessage
 
-from faststream_redis_timers.subscriber.lua import COMMIT_LUA
+from faststream_redis_timers.subscriber.lua import COMMIT_LUA, COMMIT_SHA, eval_cached
 
 
 if typing.TYPE_CHECKING:
@@ -45,8 +45,10 @@ class TimerStreamMessage(StreamMessage["TimerMessage"]):
     async def _commit(self) -> None:
         if self._client is None or not self._timer_id:
             return
-        await self._client.eval(
+        await eval_cached(
+            self._client,
             COMMIT_LUA,
+            COMMIT_SHA,
             2,
             self._timeline_key,
             self._payloads_key,

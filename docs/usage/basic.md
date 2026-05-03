@@ -91,7 +91,7 @@ connection is released when the application stops.
 
 ## Timer IDs
 
-Each timer has a unique `timer_id`. If you don't provide one, a UUID is generated automatically. You can supply your own to make a timer idempotent — publishing the same `timer_id` twice will overwrite the first:
+Each timer has a unique `timer_id`. If you don't provide one, a UUID is generated automatically. You can supply your own to make a timer idempotent — publishing the same `timer_id` twice will **overwrite the first** silently (no error, no warning). This is the right behavior for idempotent retry of `publish()` calls but a footgun if two unrelated callers pick the same ID. Namespace your IDs (e.g., `f"invoice-{invoice_id}-due"`) to avoid accidental collisions.
 
 ```python
 await broker.publish(
@@ -101,6 +101,10 @@ await broker.publish(
     activate_in=timedelta(days=30),
 )
 ```
+
+## Past activation times fire immediately
+
+Both `activate_in=timedelta(seconds=-5)` and `activate_at=datetime.now(tz=UTC) - timedelta(seconds=5)` produce a timer scheduled in the past — the next subscriber poll picks it up and fires it immediately. No error is raised; this lets `activate_at` computations that take "marginally too long" still deliver instead of breaking. If you want strict scheduling, validate at the call site before publishing.
 
 ## Cancelling timers
 
