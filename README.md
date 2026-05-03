@@ -55,6 +55,33 @@ await broker.publish("INV-001", topic="invoices", timer_id="inv-1", activate_in=
 await broker.cancel_timer("invoices", "inv-1")
 ```
 
+## Tracing & headers
+
+`publish()` accepts `correlation_id` and `headers` — both round-trip to the handler via the standard FastStream `StreamMessage`:
+
+```python
+await broker.publish(
+    {"order_id": 42},
+    topic="orders",
+    correlation_id="trace-abc-123",
+    headers={"x-tenant": "acme", "x-priority": "high"},
+)
+```
+
+Inside the handler:
+
+```python
+from faststream import Context
+
+@broker.subscriber("orders")
+async def handle(
+    body: dict,
+    correlation_id: str = Context("message.correlation_id"),
+    tenant: str = Context("message.headers.x-tenant"),
+) -> None:
+    ...
+```
+
 ## Tuning
 
 Per-subscriber knobs (passed to `@broker.subscriber("topic", ...)`):

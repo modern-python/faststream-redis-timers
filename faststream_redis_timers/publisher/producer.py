@@ -1,9 +1,7 @@
-import json
 import typing
 from datetime import UTC, datetime
 
-from faststream.message import encode_message
-
+from faststream_redis_timers.envelope import TimerMessageFormat
 from faststream_redis_timers.response import TimerPublishCommand
 
 
@@ -33,8 +31,13 @@ class TimersProducer:
 
     async def publish(self, cmd: TimerPublishCommand) -> None:
         client = self._connection.client
-        body, content_type = encode_message(cmd.body, serializer=self.serializer)
-        payload = json.dumps({"b": body.hex(), "ct": content_type}).encode()
+        payload = TimerMessageFormat.encode(
+            message=cmd.body,
+            reply_to=cmd.reply_to,
+            headers=cmd.headers,
+            correlation_id=cmd.correlation_id or "",
+            serializer=self.serializer,
+        )
 
         timeline_key = f"{self._timeline_key}:{cmd.destination}"
         payloads_key = f"{self._payloads_key}:{cmd.destination}"

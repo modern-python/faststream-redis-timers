@@ -58,6 +58,7 @@ class TimersPublisher(PublisherUsecase):
         timer_id: str = "",
         activate_in: timedelta = timedelta(0),
         correlation_id: str | None = None,
+        headers: dict[str, typing.Any] | None = None,
     ) -> None:
         if not timer_id:
             timer_id = gen_cor_id()
@@ -68,7 +69,8 @@ class TimersPublisher(PublisherUsecase):
             destination=self.config.full_topic,
             timer_id=timer_id,
             activate_in=activate_in,
-            correlation_id=correlation_id or gen_cor_id(),
+            correlation_id=correlation_id or timer_id,
+            headers=headers,
         )
         await self._basic_publish(
             cmd,

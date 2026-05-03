@@ -1,12 +1,11 @@
-import json
 import typing
 from contextlib import contextmanager
 from unittest.mock import AsyncMock
 
 from faststream._internal.testing.broker import TestBroker, change_producer
-from faststream.message import encode_message
 
 from faststream_redis_timers.broker import TimersBroker
+from faststream_redis_timers.envelope import TimerMessageFormat
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.publisher.producer import TimersProducer
 from faststream_redis_timers.publisher.usecase import TimersPublisher
@@ -57,11 +56,13 @@ class FakeTimersProducer(TimersProducer):
         self.broker = broker
 
     async def publish(self, cmd: TimerPublishCommand) -> None:
-        body, content_type = encode_message(
-            cmd.body,
+        payload = TimerMessageFormat.encode(
+            message=cmd.body,
+            reply_to=cmd.reply_to,
+            headers=cmd.headers,
+            correlation_id=cmd.correlation_id or "",
             serializer=self.broker.config.fd_config._serializer,  # noqa: SLF001
         )
-        payload = json.dumps({"b": body.hex(), "ct": content_type}).encode()
         topic = cmd.destination
         timer_id = cmd.timer_id or ""
 
