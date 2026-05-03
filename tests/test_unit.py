@@ -1,3 +1,4 @@
+import warnings
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
@@ -242,3 +243,45 @@ async def test_publisher_fetch_redis_timers_uses_correct_key() -> None:
 
     key_used = client.zrangebyscore.call_args[0][0]
     assert key_used == "custom_timeline:orders"
+
+
+# --- start_timeout (B6) ---
+
+
+def test_broker_start_timeout_propagates_to_config() -> None:
+    broker = TimersBroker(AsyncMock(), start_timeout=7.5)
+    assert broker.config.broker_config.start_timeout == 7.5
+
+
+def test_broker_start_timeout_default_is_three_seconds() -> None:
+    broker = TimersBroker(AsyncMock())
+    assert broker.config.broker_config.start_timeout == 3.0
+
+
+# --- duplicate subscriber warning (U9) ---
+
+
+def test_duplicate_subscriber_warns() -> None:
+    broker = TimersBroker(AsyncMock())
+
+    @broker.subscriber("same")
+    async def first(body: str) -> None: ...
+
+    with pytest.warns(UserWarning, match="Duplicate subscriber"):
+
+        @broker.subscriber("same")
+        async def second(body: str) -> None: ...
+
+
+def test_distinct_topics_do_not_warn() -> None:
+    broker = TimersBroker(AsyncMock())
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+
+        @broker.subscriber("a")
+        async def handler_a(body: str) -> None: ...
+
+        @broker.subscriber("b")
+        async def handler_b(body: str) -> None: ...
+
+    assert not [w for w in caught if "Duplicate subscriber" in str(w.message)]

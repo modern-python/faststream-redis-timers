@@ -97,6 +97,23 @@ async def test_subscriber_no_handlers(redis_client: Redis) -> None:
         await asyncio.sleep(0.05)  # just verify it doesn't hang
 
 
+async def test_broker_start_timeout_zero_raises(redis_client: Redis) -> None:
+    """start_timeout=0 means anyio.fail_after fires before the start signal can land."""
+    suffix = uuid.uuid4().hex
+    broker = TimersBroker(
+        redis_client,
+        timeline_key=f"sto_tl_{suffix}",
+        payloads_key=f"sto_pl_{suffix}",
+        start_timeout=0.0,
+    )
+
+    @broker.subscriber("topic")
+    async def handler(body: str) -> None: ...
+
+    with pytest.raises(TimeoutError):
+        await broker.__aenter__()
+
+
 async def test_two_brokers_same_keys_deliver_once(redis_client: Redis) -> None:
     """Two broker instances sharing keys process each timer exactly once."""
     suffix = uuid.uuid4().hex

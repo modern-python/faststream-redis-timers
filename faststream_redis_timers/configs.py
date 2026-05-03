@@ -32,6 +32,7 @@ class TimersBrokerConfig(BrokerConfig):
     connection: ConnectionState
     timeline_key: str = "timers_timeline"
     payloads_key: str = "timers_payloads"
+    start_timeout: float = 3.0
 
     async def connect(self) -> None:
         await self.connection.connect()

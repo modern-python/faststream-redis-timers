@@ -1,3 +1,4 @@
+import warnings
 from collections.abc import Iterable, Sequence
 from typing import Any, override
 
@@ -41,6 +42,17 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
             description_=description_,
             include_in_schema=include_in_schema,
         )
+        full_topic = subscriber._config.full_topic  # noqa: SLF001
+        if any(
+            isinstance(s, TimersSubscriber) and s._config.full_topic == full_topic  # noqa: SLF001
+            for s in self._subscribers
+        ):
+            warnings.warn(
+                f"Duplicate subscriber registered for topic {topic!r}: pollers will compete "
+                f"for the same Redis keys. Use multiple decorated handlers on a single function "
+                f"or separate topics if you need isolated processing.",
+                stacklevel=2,
+            )
         super().subscriber(subscriber)
         return subscriber.add_call(
             parser_=parser or self._parser,
