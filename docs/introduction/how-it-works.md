@@ -22,8 +22,8 @@ The envelope is FastStream's `BinaryMessageFormatV1` — a binary-safe wire form
 
 Each subscriber runs a background polling loop that:
 
-1. Calls `ZRANGEBYSCORE timers_timeline:{topic} -inf <now> LIMIT 0 max_concurrent` to find due timers
-2. For each due timer, runs an atomic Lua **claim** script that:
+1. Calls `ZRANGEBYSCORE timers_timeline:{topic} -inf <now> LIMIT 0 <free>` (where `<free>` is the unused capacity from the per-subscriber concurrency limiter) to find due timers
+2. For each due timer, spawns a task that — bounded by the `max_concurrent` capacity limiter — runs an atomic Lua **claim** script that:
     - Verifies the timer is still due (score ≤ now)
     - Pushes its score forward by `lease_ttl` seconds — granting the worker a lease
     - Returns the payload
@@ -56,5 +56,5 @@ The default ack policy is `NACK_ON_ERROR`: the timer is acknowledged on success,
 | `timeline_key` | `timers_timeline` | Prefix for sorted set keys (`{timeline_key}:{topic}`) |
 | `payloads_key` | `timers_payloads` | Prefix for hash keys (`{payloads_key}:{topic}`) |
 | `polling_interval` | `0.05` s | How often to poll when no timers are due |
-| `max_concurrent` | `5` | Max timers processed per poll cycle per subscriber |
+| `max_concurrent` | `5` | Max handlers running concurrently per subscriber; also bounds fetch batch size |
 | `lease_ttl` | `30` s | How long a worker holds the lease before another worker may re-claim |

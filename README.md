@@ -91,8 +91,9 @@ Per-subscriber knobs (passed to `@broker.subscriber("topic", ...)`):
   re-deliver the timer (duplicate). Increase if your handlers are slow.
 - `polling_interval` (default `0.05` s) — how often the subscriber checks
   Redis for due timers when the queue is empty. Increase to reduce idle load.
-- `max_concurrent` (default `5`) — maximum number of timers fetched per poll
-  cycle.
+- `max_concurrent` (default `5`) — maximum number of handlers running in
+  parallel per subscriber. Also caps the fetch batch size per poll cycle.
+  Handlers must be safe under concurrency in addition to being idempotent.
 
 ## Failure modes
 

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
+import anyio
 import faststream.asgi.factories.asyncapi.try_it_out
 import pytest
 from faststream.exceptions import IncorrectState
@@ -206,17 +207,17 @@ def test_timers_route_and_route_publisher() -> None:
 # --- Subscriber._get_msgs claim returns nil ---
 
 
-async def test_get_msgs_skips_timer_when_claim_returns_nil() -> None:
+async def test_claim_and_consume_skips_timer_when_claim_returns_nil() -> None:
     """When another worker has already leased the timer, claim.lua returns nil — skip without consuming."""
     client = AsyncMock()
-    client.zrangebyscore.return_value = [b"timer-1"]
     client.eval.return_value = None  # simulate concurrent worker holding the lease
     broker = TimersBroker(client)
     sub = broker.subscriber("topic")
 
     consume_mock = AsyncMock()
     sub.consume = consume_mock  # ty: ignore[invalid-assignment]
-    await sub._get_msgs(client)  # noqa: SLF001
+    limiter = anyio.CapacityLimiter(1)
+    await sub._claim_and_consume(b"timer-1", 30, limiter)  # noqa: SLF001
 
     consume_mock.assert_not_awaited()
     client.eval.assert_awaited()

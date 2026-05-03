@@ -64,21 +64,21 @@ Configure polling behaviour per subscriber:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `polling_interval` | `0.05` s | How often to poll when no timers are due |
-| `max_concurrent` | `5` | Max timers processed per poll cycle |
+| `max_concurrent` | `5` | Max handlers running in parallel; also caps fetch batch size per poll |
 | `lease_ttl` | `30` s | How long a worker holds the lease before another worker may re-claim |
 
 ```python
 @broker.subscriber(
     "high-priority",
     polling_interval=0.01,   # poll every 10ms
-    max_concurrent=20,        # process up to 20 timers per cycle
+    max_concurrent=20,        # up to 20 handlers may run in parallel
     lease_ttl=60,             # hold lease for up to 60 seconds
 )
 async def handle_urgent(body: str) -> None: ...
 ```
 
-!!! warning "Handlers must be idempotent"
-    A handler that runs longer than `lease_ttl`, or a worker that crashes after the handler ran but before the commit landed, may cause the timer to be delivered more than once. Design handlers to be safe under retry.
+!!! warning "Handlers must be idempotent and concurrency-safe"
+    A handler that runs longer than `lease_ttl`, or a worker that crashes after the handler ran but before the commit landed, may cause the timer to be delivered more than once. Design handlers to be safe under retry. Because `max_concurrent` invocations run in parallel, handlers must also be safe under concurrent execution (no unsynchronized shared state).
 
 ## Ack policy
 
