@@ -24,19 +24,29 @@ async def handle_reminder(message: str) -> None:
 
 ## 3. Publish a timer
 
-Use `broker.publish()` with `activate_in` to schedule delivery:
+Use `broker.publish()` with `activate_in` (relative delay) or `activate_at` (absolute time) to schedule delivery. `publish()` returns the resolved `timer_id` — keep it for cancellation or inspection.
 
 ```python
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 @app.after_startup
 async def schedule_reminder() -> None:
+    # Relative — fire 24 hours from now
     await broker.publish(
         "Call dentist",
         topic="reminders",
         activate_in=timedelta(hours=24),
     )
+
+    # Absolute — fire at a specific moment
+    await broker.publish(
+        "Quarterly review",
+        topic="reminders",
+        activate_at=datetime(2026, 6, 1, 9, tzinfo=UTC),
+    )
 ```
+
+`activate_at` must be timezone-aware. Passing both `activate_in` and `activate_at` raises `ValueError`.
 
 The full example:
 
@@ -89,16 +99,15 @@ await broker.publish(
 
 ## Cancelling timers
 
-Cancel a pending timer before it fires using `broker.cancel_timer(topic, timer_id)`. This is a no-op if the timer has already fired or does not exist:
+Cancel a pending timer before it fires using `broker.cancel_timer(topic, timer_id)`. This is a no-op if the timer has already fired or does not exist. The `timer_id` returned from `publish()` is what you'd pass:
 
 ```python
-await broker.publish(
+timer_id = await broker.publish(
     "INV-001",
     topic="invoices",
-    timer_id="invoice-INV-001-due",
     activate_in=timedelta(days=30),
 )
 
 # Later — invoice was paid early, cancel the reminder
-await broker.cancel_timer("invoices", "invoice-INV-001-due")
+await broker.cancel_timer("invoices", timer_id)
 ```

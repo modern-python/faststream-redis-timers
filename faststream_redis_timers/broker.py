@@ -1,7 +1,7 @@
 import logging
 import typing
 from collections.abc import Iterable, Sequence
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fast_depends.dependencies import Dependant
 from faststream import BaseMiddleware
@@ -24,7 +24,7 @@ from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.publisher.producer import TimersProducer
 from faststream_redis_timers.publisher.usecase import TimersPublisher
 from faststream_redis_timers.registrator import TimersRegistrator
-from faststream_redis_timers.response import TimerPublishCommand
+from faststream_redis_timers.response import TimerPublishCommand, resolve_activate_at
 from faststream_redis_timers.subscriber.usecase import TimersSubscriber
 
 
@@ -162,9 +162,10 @@ class TimersBroker(
         *,
         timer_id: str = "",
         activate_in: timedelta = timedelta(0),
+        activate_at: datetime | None = None,
         correlation_id: str | None = None,
         headers: dict[str, typing.Any] | None = None,
-    ) -> None:
+    ) -> str:
         if not timer_id:
             timer_id = gen_cor_id()
         cmd = TimerPublishCommand(
@@ -172,11 +173,12 @@ class TimersBroker(
             _publish_type=PublishType.PUBLISH,
             destination=f"{self.config.broker_config.prefix}{topic}",
             timer_id=timer_id,
-            activate_in=activate_in,
+            activate_at=resolve_activate_at(activate_in, activate_at),
             correlation_id=correlation_id or timer_id,
             headers=headers,
         )
-        return typing.cast("None", await self._basic_publish(cmd, producer=self.config.producer))
+        await self._basic_publish(cmd, producer=self.config.producer)
+        return timer_id
 
     async def cancel_timer(self, topic: str, timer_id: str) -> None:
         """Cancel a pending timer. No-op if the timer has already fired or does not exist."""
