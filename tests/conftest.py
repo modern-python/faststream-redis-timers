@@ -29,5 +29,4 @@ def broker(redis_client: Redis) -> TimersBroker:
         redis_client,
         timeline_key=f"test_timeline_{suffix}",
         payloads_key=f"test_payloads_{suffix}",
-        lock_prefix=f"test_lock_{suffix}:",
     )

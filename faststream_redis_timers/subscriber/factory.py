@@ -16,7 +16,7 @@ def create_subscriber(  # noqa: PLR0913
     topic: str,
     polling_interval: float = 0.05,
     max_concurrent: int = 5,
-    lock_ttl: int = 30,
+    lease_ttl: int = 30,
     config: "TimersBrokerConfig",
     title_: str | None = None,
     description_: str | None = None,
@@ -26,7 +26,7 @@ def create_subscriber(  # noqa: PLR0913
         topic=topic,
         polling_interval=polling_interval,
         max_concurrent=max_concurrent,
-        lock_ttl=lock_ttl,
+        lease_ttl=lease_ttl,
     )
     usecase_config = TimersSubscriberConfig(
         _outer_config=config,

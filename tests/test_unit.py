@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import faststream.asgi.factories.asyncapi.try_it_out
 import pytest
@@ -203,23 +203,23 @@ def test_timers_route_and_route_publisher() -> None:
     assert pub is not None
 
 
-# --- Subscriber._get_msgs lock not acquired ---
+# --- Subscriber._get_msgs claim returns nil ---
 
 
-async def test_get_msgs_skips_timer_when_lock_not_acquired() -> None:
+async def test_get_msgs_skips_timer_when_claim_returns_nil() -> None:
+    """When another worker has already leased the timer, claim.lua returns nil — skip without consuming."""
     client = AsyncMock()
     client.zrangebyscore.return_value = [b"timer-1"]
+    client.eval.return_value = None  # simulate concurrent worker holding the lease
     broker = TimersBroker(client)
     sub = broker.subscriber("topic")
 
-    with patch("faststream_redis_timers.subscriber.usecase.Lock") as mock_lock_cls:
-        mock_lock = AsyncMock()
-        mock_lock.acquire.return_value = False
-        mock_lock_cls.return_value = mock_lock
+    consume_mock = AsyncMock()
+    sub.consume = consume_mock  # ty: ignore[invalid-assignment]
+    await sub._get_msgs(client)  # noqa: SLF001
 
-        await sub._get_msgs(client)  # noqa: SLF001
-
-    client.hget.assert_not_awaited()
+    consume_mock.assert_not_awaited()
+    client.eval.assert_awaited()
 
 
 # --- TimersPublisher.fetch_redis_timers ---

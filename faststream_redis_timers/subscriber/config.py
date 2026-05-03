@@ -30,13 +30,9 @@ class TimersSubscriberConfig(SubscriberUsecaseConfig):
         return f"{self._outer_config.payloads_key}:{self.full_topic}"
 
     @property
-    def lock_prefix(self) -> str:
-        return self._outer_config.lock_prefix
-
-    @property
     def ack_policy(self) -> AckPolicy:
         if self._ack_policy is EMPTY:
-            return AckPolicy.REJECT_ON_ERROR
+            return AckPolicy.NACK_ON_ERROR
         return self._ack_policy  # pragma: no cover
 
 

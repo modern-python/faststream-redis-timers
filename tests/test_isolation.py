@@ -65,7 +65,6 @@ async def test_max_concurrent_limits_batch(redis_client: Redis) -> None:
         redis_client,
         timeline_key=f"tight_tl_{suffix}",
         payloads_key=f"tight_pl_{suffix}",
-        lock_prefix=f"tight_lk_{suffix}:",
     )
     received: list[str] = []
     all_done = asyncio.Event()
@@ -91,7 +90,6 @@ async def test_subscriber_no_handlers(redis_client: Redis) -> None:
         redis_client,
         timeline_key=f"noh_tl_{suffix}",
         payloads_key=f"noh_pl_{suffix}",
-        lock_prefix=f"noh_lk_{suffix}:",
     )
     _ = broker.subscriber("topic")  # no handler applied
 
@@ -105,7 +103,6 @@ async def test_two_brokers_same_keys_deliver_once(redis_client: Redis) -> None:
     kwargs = {
         "timeline_key": f"shared_tl_{suffix}",
         "payloads_key": f"shared_pl_{suffix}",
-        "lock_prefix": f"shared_lk_{suffix}:",
     }
     client_a = redis_client
     client_b = Redis.from_url(REDIS_URL)
