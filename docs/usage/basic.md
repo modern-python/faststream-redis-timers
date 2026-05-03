@@ -111,3 +111,38 @@ timer_id = await broker.publish(
 # Later — invoice was paid early, cancel the reminder
 await broker.cancel_timer("invoices", timer_id)
 ```
+
+## Inspecting pending timers
+
+Three broker methods let you inspect or bulk-cancel timers without poking Redis directly:
+
+| Method | Returns | Use for |
+|--------|---------|---------|
+| `await broker.has_pending(topic, timer_id)` | `bool` | "is timer X still scheduled?" |
+| `await broker.get_pending_timers(topic, before=None)` | `list[str]` | List pending IDs on *topic* — optionally filter to those due by *before* (a timezone-aware `datetime`) |
+| `await broker.cancel_all(topic)` | `int` | Cancel every timer on *topic*; returns the number removed |
+
+```python
+from datetime import UTC, datetime, timedelta
+
+# Quick existence check
+if await broker.has_pending("invoices", "invoice-INV-001-due"):
+    ...
+
+# All pending timers on a topic
+pending = await broker.get_pending_timers("invoices")
+
+# Only those due in the next hour
+soon = await broker.get_pending_timers(
+    "invoices", before=datetime.now(tz=UTC) + timedelta(hours=1),
+)
+
+# Wipe a topic's queue (e.g., during a maintenance reset)
+removed = await broker.cancel_all("invoices")
+```
+
+These methods only inspect/cancel timers in the queue — handlers that have already started running are unaffected.
+
+## Debug logging
+
+Set `log_level=logging.DEBUG` on `TimersBroker` to emit per-timer DEBUG lines: timers fetched per poll cycle, claim contested by another worker, and timer delivered to handler. Useful for diagnosing "my timer didn't fire".
