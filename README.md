@@ -145,6 +145,11 @@ Run multiple `TimersBroker` processes against the same Redis keys. The Lua
 claim script ensures each due timer is leased by exactly one worker at a
 time; failover is automatic via lease expiry.
 
+Supports single-primary Redis, including Sentinel-managed primary/replica
+setups. Redis Cluster is **not** supported: each topic's timeline and
+payload keys must live on the same node, and the broker raises a
+`TypeError` if constructed with a `RedisCluster` client.
+
 ```python
 broker = TimersBroker(
     Redis.from_url("redis://..."),

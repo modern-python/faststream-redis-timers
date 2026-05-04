@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import faststream.asgi.factories.asyncapi.try_it_out
 import pytest
 from faststream.exceptions import IncorrectState
+from redis.asyncio.cluster import RedisCluster
 from redis.exceptions import NoScriptError
 
 from faststream_redis_timers import TestTimersBroker, TimersBroker
@@ -54,6 +55,12 @@ async def test_broker_config_connect_and_disconnect() -> None:
     config = broker.config.broker_config
     await config.connect()
     await config.disconnect()
+
+
+def test_broker_rejects_redis_cluster_client() -> None:
+    fake_cluster = MagicMock(spec=RedisCluster)
+    with pytest.raises(TypeError, match="RedisCluster"):
+        TimersBroker(fake_cluster)
 
 
 # --- TimersBroker.ping ---
