@@ -103,7 +103,7 @@ class TimersPublisher(PublisherUsecase):
         """Return (topic, timer_id) pairs for timers due by *dt* on this publisher's topic."""
         client = self.config._outer_config.connection.client  # noqa: SLF001
         timeline_key = f"{self.config._outer_config.timeline_key}:{self.config.full_topic}"  # noqa: SLF001
-        timer_ids: list[bytes] = await client.zrangebyscore(timeline_key, "-inf", dt.timestamp())
+        timer_ids: list[bytes] | list[str] = await client.zrangebyscore(timeline_key, "-inf", dt.timestamp())
         return [(self.config.topic, raw_id.decode() if isinstance(raw_id, bytes) else raw_id) for raw_id in timer_ids]
 
     async def request(self, *args: typing.Any, **kwargs: typing.Any) -> typing.NoReturn:

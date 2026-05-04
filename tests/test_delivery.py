@@ -2,6 +2,7 @@ import asyncio
 from datetime import timedelta
 
 from faststream.response.publish_type import PublishType
+from pydantic import BaseModel
 
 from faststream_redis_timers import TimersBroker
 from faststream_redis_timers.response import TimerPublishCommand
@@ -37,6 +38,33 @@ async def test_subscriber_receives_dict(broker: TimersBroker) -> None:
         await asyncio.wait_for(event.wait(), timeout=5.0)
 
     assert received == [{"order_id": 42, "status": "due"}]
+
+
+async def test_subscriber_receives_pydantic_model(broker: TimersBroker) -> None:
+    class ChatMessage(BaseModel):
+        chat_id: str
+        message_id: int
+        message_text: str
+
+    received: list[ChatMessage] = []
+    event = asyncio.Event()
+
+    @broker.subscriber("topic")
+    async def handler(body: ChatMessage) -> None:
+        received.append(body)
+        event.set()
+
+    payload = {
+        "chat_id": "019ac5ac-0c30-7341-9667-86a1cc343f86",
+        "message_id": 3056,
+        "message_text": "Ок",
+    }
+    async with broker:
+        await broker.publish(payload, topic="topic")
+        await asyncio.wait_for(event.wait(), timeout=5.0)
+
+    assert received == [ChatMessage(**payload)]
+    assert isinstance(received[0], ChatMessage)
 
 
 async def test_publisher_sends_message(broker: TimersBroker) -> None:

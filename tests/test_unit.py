@@ -298,13 +298,13 @@ async def test_consume_sets_start_signal_when_ping_returns_false() -> None:
 
 async def test_eval_cached_falls_back_on_noscript() -> None:
     client = AsyncMock()
-    client.evalsha.side_effect = [NoScriptError("NOSCRIPT"), b"ok"]
+    client.execute_command.side_effect = [NoScriptError("NOSCRIPT"), b"ok"]
     client.script_load.return_value = "abc123"
 
     result = await eval_cached(client, "return 1", "abc123", 0)
 
     assert result == b"ok"
-    assert client.evalsha.await_count == 2
+    assert client.execute_command.await_count == 2
     client.script_load.assert_awaited_once_with("return 1")
 
 

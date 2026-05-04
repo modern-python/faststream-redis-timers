@@ -9,18 +9,24 @@ if typing.TYPE_CHECKING:
     from redis.asyncio import Redis
 
 
+# Accepts a client created with either default (bytes) or ``decode_responses=True`` (str).
+# The CLAIM Lua reply is forced through ``NEVER_DECODE`` so the binary envelope stays
+# intact regardless of which mode the user picked.
+type RedisClient = "Redis[bytes] | Redis[str]"
+
+
 class ConnectionState:
-    def __init__(self, client: "Redis[bytes] | None" = None) -> None:
+    def __init__(self, client: "RedisClient | None" = None) -> None:
         self._client = client
 
     @property
-    def client(self) -> "Redis[bytes]":
+    def client(self) -> "RedisClient":
         if self._client is None:
             msg = "Connection not available. Connect the broker first."
             raise IncorrectState(msg)
         return self._client
 
-    async def connect(self) -> "Redis[bytes]":
+    async def connect(self) -> "RedisClient":
         return self.client
 
     async def disconnect(self) -> None:

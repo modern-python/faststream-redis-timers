@@ -19,7 +19,7 @@ from faststream.response.publish_type import PublishType
 from faststream.specification.schema import BrokerSpec
 from faststream.specification.schema.extra import Tag, TagDict
 
-from faststream_redis_timers.configs import ConnectionState, TimersBrokerConfig
+from faststream_redis_timers.configs import ConnectionState, RedisClient, TimersBrokerConfig
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.publisher.producer import TimersProducer
 from faststream_redis_timers.publisher.usecase import TimersPublisher
@@ -30,7 +30,6 @@ from faststream_redis_timers.subscriber.usecase import TimersSubscriber
 
 if typing.TYPE_CHECKING:
     from faststream._internal.context.repository import ContextRepo
-    from redis.asyncio import Redis
 
 
 class TimersParamsStorage(DefaultLoggerStorage):
@@ -61,7 +60,7 @@ class TimersBroker(
     TimersRegistrator,
     BrokerUsecase[
         TimerMessage,
-        "Redis[bytes]",
+        RedisClient,
         BrokerConfig,  # Use BrokerConfig to avoid typing issues when passing to FastStream app
     ],
 ):
@@ -80,7 +79,7 @@ class TimersBroker(
 
     def __init__(  # noqa: PLR0913
         self,
-        client: "Redis[bytes] | None" = None,
+        client: "RedisClient | None" = None,
         *,
         timeline_key: str = "timers_timeline",
         payloads_key: str = "timers_payloads",
@@ -137,7 +136,7 @@ class TimersBroker(
         super().__init__(config=broker_config, specification=specification, routers=routers)  # ty: ignore[unknown-argument]
 
     @typing.override
-    async def _connect(self) -> "Redis[bytes]":
+    async def _connect(self) -> "RedisClient":
         return self.config.broker_config.connection.client
 
     @typing.override
@@ -214,7 +213,9 @@ class TimersBroker(
         """
         client = self.config.broker_config.connection.client
         score_max: str | float = before.timestamp() if before is not None else "+inf"
-        raw_ids: list[bytes] = await client.zrangebyscore(self._topic_timeline_key(topic), "-inf", score_max)
+        raw_ids: list[bytes] | list[str] = await client.zrangebyscore(
+            self._topic_timeline_key(topic), "-inf", score_max
+        )
         return [r.decode() if isinstance(r, bytes) else r for r in raw_ids]
 
     async def cancel_all(self, topic: str) -> int:

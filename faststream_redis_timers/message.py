@@ -7,7 +7,7 @@ from faststream_redis_timers.subscriber.lua import COMMIT_LUA, COMMIT_SHA, eval_
 
 
 if typing.TYPE_CHECKING:
-    from redis.asyncio import Redis
+    from faststream_redis_timers.configs import RedisClient
 
 
 class TimerMessage(TypedDict):
@@ -30,7 +30,7 @@ class TimerStreamMessage(StreamMessage["TimerMessage"]):
     def __init__(
         self,
         *args: typing.Any,
-        client: "Redis[bytes] | None" = None,
+        client: "RedisClient | None" = None,
         timeline_key: str = "",
         payloads_key: str = "",
         timer_id: str = "",
