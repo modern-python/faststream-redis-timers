@@ -46,10 +46,12 @@ timer_id = await broker.publish(
 
 ## How it works
 
-Timers are stored in Redis as two structures:
+Timers are stored in Redis as two keys **per topic**:
 
-- A **sorted set** (`timers_timeline`) with the activation timestamp as score
-- A **hash** (`timers_payloads`) with the serialized message body
+- A **sorted set** (`timers_timeline:{topic}`) with the activation timestamp as score
+- A **hash** (`timers_payloads:{topic}`) with the serialized message body
+
+So a timer on the `invoices` topic lives under `timers_timeline:invoices` and `timers_payloads:invoices` — handy when poking around in `redis-cli`. A `TimersRouter(prefix="my-service:")` extends the suffix to `my-service:invoices`.
 
 A polling loop checks for due timers and atomically claims each one via a Lua
 script that pushes its score forward by `lease_ttl` seconds — granting the
