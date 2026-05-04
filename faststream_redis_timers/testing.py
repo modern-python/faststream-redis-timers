@@ -2,7 +2,7 @@ import typing
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from faststream._internal.testing.broker import TestBroker, change_producer
 
@@ -63,8 +63,19 @@ class TestTimersBroker(TestBroker[TimersBroker]):
 
     @contextmanager
     def _patch_broker(self, broker: TimersBroker) -> "Iterator[None]":
+        # Test-broker contract: messages deliver immediately, so there are
+        # never any pending timers. Stub the inspection paths to return that.
         mock_client = AsyncMock()
-        mock_client.zrangebyscore.return_value = []
+        mock_client.zrangebyscore.return_value = []  # get_pending_timers -> []
+        mock_client.zscore.return_value = None  # has_pending -> False
+        # cancel_all uses `async with client.pipeline(...) as pipe`. AsyncMock's
+        # default makes pipeline() return a coroutine, which can't be entered.
+        # Use MagicMock so the call returns the AsyncMock directly; AsyncMock
+        # natively supports the async-context-manager protocol.
+        mock_pipe = AsyncMock()
+        mock_pipe.__aenter__.return_value = mock_pipe  # `async with ... as pipe` -> mock_pipe
+        mock_pipe.execute.return_value = [0]  # zcard result -> 0 removed
+        mock_client.pipeline = MagicMock(return_value=mock_pipe)
         connection = broker.config.broker_config.connection
         original_client = connection._client  # noqa: SLF001
         connection._client = mock_client  # noqa: SLF001
