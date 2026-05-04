@@ -99,7 +99,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
             while self.running:
                 try:
                     fetched = await self._get_msgs(client, tg, limiter)
-                except Exception as e:  # noqa: BLE001  # pragma: no cover
+                except Exception as e:  # noqa: BLE001
                     self._log(log_level=logging.ERROR, message=f"Message fetch error: {e!r}", exc_info=e)
                     error_attempt = min(error_attempt + 1, _BACKOFF_EXP_CAP)
                     delay = min(2.0 ** (error_attempt - 1) * random.uniform(0.5, 1.5), 30.0)  # noqa: S311
@@ -152,10 +152,22 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         client: "RedisClient",
     ) -> None:
         try:
+            timer_id = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
+        except UnicodeDecodeError as e:
+            self._log(
+                log_level=logging.WARNING,
+                message=f"Dropping timer with non-UTF-8 id {raw_id!r}: {e!r}",
+            )
+            async with client.pipeline(transaction=True) as pipe:
+                pipe.zrem(self._config.topic_timeline_key, raw_id)
+                pipe.hdel(self._config.topic_payloads_key, raw_id)
+                await pipe.execute()
+            return
+
+        try:
             async with limiter:
                 now = time.time()
                 claim_score = now + lease_ttl
-                timer_id = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
                 raw_payload: bytes | None = await eval_cached(
                     client,
                     CLAIM_LUA,
@@ -181,7 +193,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
                 )
                 self._log(log_level=logging.DEBUG, message=f"Timer {timer_id!r} delivered to handler")
                 await self.consume(msg)
-        except Exception as e:  # noqa: BLE001  # pragma: no cover
+        except Exception as e:  # noqa: BLE001
             self._log(
                 log_level=logging.ERROR,
                 message=f"Timer {raw_id!r} consume error: {e!r}",
