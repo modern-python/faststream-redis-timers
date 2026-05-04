@@ -302,6 +302,39 @@ async def test_consume_sets_start_signal_when_ping_returns_false() -> None:
         await asyncio.sleep(0.05)
 
 
+# --- topic must be non-empty (B8) ---
+
+
+async def test_publish_rejects_empty_topic() -> None:
+    broker = TimersBroker(AsyncMock())
+    with pytest.raises(ValueError, match="topic must be a non-empty string"):
+        await broker.publish("msg", topic="")
+
+
+async def test_cancel_timer_rejects_empty_topic() -> None:
+    broker = TimersBroker(AsyncMock())
+    with pytest.raises(ValueError, match="topic must be a non-empty string"):
+        await broker.cancel_timer("", "id")
+
+
+async def test_has_pending_rejects_empty_topic() -> None:
+    broker = TimersBroker(AsyncMock())
+    with pytest.raises(ValueError, match="topic must be a non-empty string"):
+        await broker.has_pending("", "id")
+
+
+async def test_get_pending_timers_rejects_empty_topic() -> None:
+    broker = TimersBroker(AsyncMock())
+    with pytest.raises(ValueError, match="topic must be a non-empty string"):
+        await broker.get_pending_timers("")
+
+
+async def test_cancel_all_rejects_empty_topic() -> None:
+    broker = TimersBroker(AsyncMock())
+    with pytest.raises(ValueError, match="topic must be a non-empty string"):
+        await broker.cancel_all("")
+
+
 # --- error path log format (B6) ---
 
 
