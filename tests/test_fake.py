@@ -87,6 +87,19 @@ async def test_fake_broker_fetch_redis_timers_returns_empty() -> None:
     assert result == []
 
 
+async def test_fake_broker_inspection_methods_report_no_pending() -> None:
+    broker = TimersBroker()
+
+    @broker.subscriber("topic")
+    async def handler(body: str) -> None: ...
+
+    async with TestTimersBroker(broker):
+        await broker.publish("hi", topic="topic", timer_id="t-1")
+        assert await broker.has_pending("topic", "t-1") is False
+        assert await broker.get_pending_timers("topic") == []
+        assert await broker.cancel_all("topic") == 0
+
+
 # --- scheduled_timers inspection (U8) ---
 
 

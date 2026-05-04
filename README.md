@@ -134,9 +134,10 @@ Per-subscriber knobs (passed to `@broker.subscriber("topic", ...)`):
   ack failed to land in Redis (network blip) will be retried; a handler that
   takes longer than `lease_ttl` may be re-delivered to another worker.
 - **Buggy handler retries forever.** If a handler always raises, the timer is
-  retried indefinitely. Raise `faststream.exceptions.RejectMessage` from your
-  handler to drop a poison-pill timer permanently. A built-in `max_attempts`
-  counter is planned for a future release.
+  retried every `lease_ttl` seconds indefinitely — there is no built-in
+  attempt counter. Raise `faststream.exceptions.RejectMessage` from your
+  handler to drop a poison-pill timer permanently, or track attempts in your
+  own state if you need a hard cap.
 
 ## High availability
 

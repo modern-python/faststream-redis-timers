@@ -87,6 +87,7 @@ Each `ScheduledTimer` has `topic`, `timer_id`, `activate_at`, `body`, `correlati
 - `timer_id` is passed through normally and available in the handler via the message.
 - `cancel_timer` / `publisher.cancel()` are no-ops in tests — since messages are delivered immediately, by the time you'd cancel, the handler has already run.
 - `publisher.fetch_redis_timers()` always returns `[]` in tests — timers are delivered instantly, so there are never any pending entries.
+- The inspection / bulk-cancel methods follow the same "nothing pending" contract: `broker.has_pending(...)` returns `False`, `broker.get_pending_timers(...)` returns `[]`, and `broker.cancel_all(...)` returns `0`. Use `TestTimersBroker.scheduled_timers` to assert *what was published*; the inspection API is for production introspection.
 - The fake producer uses the same envelope format as the real one, so all serialization paths are exercised.
 
 ## pytest-asyncio configuration
