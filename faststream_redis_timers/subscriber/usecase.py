@@ -101,7 +101,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
                 try:
                     fetched = await self._get_msgs(client, tg, limiter)
                 except Exception as e:  # noqa: BLE001  # pragma: no cover
-                    self._log(log_level=logging.ERROR, message="Message fetch error", exc_info=e)
+                    self._log(log_level=logging.ERROR, message=f"Message fetch error: {e!r}", exc_info=e)
                     error_attempt = min(error_attempt + 1, _BACKOFF_EXP_CAP)
                     delay = min(2.0 ** (error_attempt - 1) * random.uniform(0.5, 1.5), 30.0)  # noqa: S311
                     await anyio.sleep(delay)
@@ -185,7 +185,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         except Exception as e:  # noqa: BLE001  # pragma: no cover
             self._log(
                 log_level=logging.ERROR,
-                message=f"Timer {raw_id!r} consume error",
+                message=f"Timer {raw_id!r} consume error: {e!r}",
                 exc_info=e,
             )
 
