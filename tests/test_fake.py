@@ -88,8 +88,6 @@ async def test_fake_broker_fetch_redis_timers_returns_empty() -> None:
 
 
 async def test_fake_broker_inspection_methods_report_no_pending() -> None:
-    """Inside TestTimersBroker, messages deliver immediately, so the inspection
-    methods must report "nothing pending" — not lie via unstubbed AsyncMock."""
     broker = TimersBroker()
 
     @broker.subscriber("topic")
