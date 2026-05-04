@@ -152,6 +152,20 @@ removed = await broker.cancel_all("invoices")
 
 These methods only inspect/cancel timers in the queue — handlers that have already started running are unaffected.
 
+### Leased timers still appear as pending
+
+Timers that have been claimed by a worker and are currently being processed have their score pushed forward by `lease_ttl` seconds (the visibility-timeout pattern — see [How it works](../introduction/how-it-works.md)). They are *still* in the sorted set, so:
+
+- `has_pending(topic, timer_id)` returns `True` while the handler is running.
+- `get_pending_timers(topic)` (no `before`) includes them.
+- `get_pending_timers(topic, before=datetime.now(tz=UTC))` excludes them — they are no longer due "by now" because their score is in the future.
+
+If you are polling `has_pending` to detect *"the timer fired and the handler finished"*, you will get false positives during the lease window. Pass `before=datetime.now(tz=UTC)` (or treat the timer as gone only after `has_pending` is `False`) to avoid this.
+
+### `cancel_all` race with executing handlers
+
+If `cancel_all(topic)` runs while a worker is mid-handler for a leased timer on that topic, the handler runs to completion. When it finishes, its commit (the `ZREM` + `HDEL` that normally removes the timer) becomes a no-op because `cancel_all` has already deleted both keys for the topic. The work is *not* rolled back — only the bookkeeping is skipped — so handlers that have side effects (sent emails, written rows) will have already done them. Use `cancel_all` for queue resets, not for "stop everything in flight."
+
 ## Debug logging
 
 Set `log_level=logging.DEBUG` on `TimersBroker` to emit per-timer DEBUG lines: timers fetched per poll cycle, claim contested by another worker, and timer delivered to handler. Useful for diagnosing "my timer didn't fire".
