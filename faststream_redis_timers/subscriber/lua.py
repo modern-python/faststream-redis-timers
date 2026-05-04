@@ -16,11 +16,12 @@ crosses the wire once per Redis instance lifetime.
 import hashlib
 import typing
 
+from redis.client import NEVER_DECODE
 from redis.exceptions import NoScriptError
 
 
 if typing.TYPE_CHECKING:
-    from redis.asyncio import Redis
+    from faststream_redis_timers.configs import RedisClient
 
 
 CLAIM_LUA = """\
@@ -45,15 +46,23 @@ COMMIT_SHA = hashlib.sha1(COMMIT_LUA.encode(), usedforsecurity=False).hexdigest(
 
 
 async def eval_cached(
-    client: "Redis[bytes]",
+    client: "RedisClient",
     script: str,
     sha: str,
     num_keys: int,
     *args: typing.Any,
 ) -> typing.Any:
-    """Run a script via EVALSHA, falling back to SCRIPT LOAD + EVALSHA on NOSCRIPT."""
+    """
+    Run a script via EVALSHA, falling back to SCRIPT LOAD + EVALSHA on NOSCRIPT.
+
+    Uses ``NEVER_DECODE`` so the script's reply is returned as raw bytes even when the
+    Redis client was constructed with ``decode_responses=True``: the timer payload is
+    a binary envelope (BinaryMessageFormatV1) and forcing UTF-8 decoding on it would
+    fail at the first non-ASCII byte.
+    """
+    options = {NEVER_DECODE: []}
     try:
-        return await client.evalsha(sha, num_keys, *args)
+        return await client.execute_command("EVALSHA", sha, num_keys, *args, **options)
     except NoScriptError:
         await client.script_load(script)
-        return await client.evalsha(sha, num_keys, *args)
+        return await client.execute_command("EVALSHA", sha, num_keys, *args, **options)

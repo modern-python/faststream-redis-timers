@@ -26,9 +26,8 @@ if typing.TYPE_CHECKING:
     from faststream._internal.endpoint.publisher import PublisherProto
     from faststream._internal.endpoint.subscriber.call_item import CallsCollection
     from faststream.message import StreamMessage
-    from redis.asyncio import Redis
 
-    from faststream_redis_timers.configs import TimersBrokerConfig
+    from faststream_redis_timers.configs import RedisClient, TimersBrokerConfig
 
 
 class TimersSubscriberSpecification(SubscriberSpecification["TimersBrokerConfig", TimersSubscriberSpecificationConfig]):
@@ -69,7 +68,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         self._config = config
 
     @property
-    def _client(self) -> "Redis[bytes]":
+    def _client(self) -> "RedisClient":
         return self._outer_config.connection.client
 
     @typing.override
@@ -85,7 +84,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         else:
             start_signal.set()
 
-    async def _consume(self, client: "Redis[bytes]", *, start_signal: anyio.Event) -> None:
+    async def _consume(self, client: "RedisClient", *, start_signal: anyio.Event) -> None:
         with suppress(Exception):
             if await client.ping():
                 start_signal.set()
@@ -122,7 +121,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
 
     async def _get_msgs(
         self,
-        client: "Redis[bytes]",
+        client: "RedisClient",
         tg: "TaskGroup",
         limiter: anyio.CapacityLimiter,
     ) -> int:
@@ -133,7 +132,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
             return -1
 
         now = time.time()
-        timer_ids: list[bytes] = await client.zrangebyscore(
+        timer_ids: list[bytes] | list[str] = await client.zrangebyscore(
             self._config.topic_timeline_key, "-inf", now, start=0, num=free
         )
         if not timer_ids:
@@ -150,7 +149,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         raw_id: bytes | str,
         lease_ttl: int,
         limiter: anyio.CapacityLimiter,
-        client: "Redis[bytes]",
+        client: "RedisClient",
     ) -> None:
         try:
             async with limiter:

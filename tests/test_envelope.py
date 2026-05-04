@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import time
 import uuid
 
@@ -8,6 +9,9 @@ from redis.asyncio import Redis
 
 from faststream_redis_timers import TimersBroker
 from faststream_redis_timers.envelope import TimerMessageFormat
+
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 
 async def test_correlation_id_propagates(broker: TimersBroker) -> None:
@@ -98,6 +102,41 @@ def test_envelope_size_smaller_than_legacy() -> None:
     assert len(new) < len(legacy)
     # New format should be roughly body size (1024) + small header overhead
     assert len(new) < len(body) + 200
+
+
+async def test_works_with_decode_responses_true() -> None:
+    """A Redis client created with decode_responses=True must not break payload parsing."""
+    client = Redis.from_url(REDIS_URL, decode_responses=True)
+    try:
+        await client.ping()
+    except Exception:  # noqa: BLE001  # pragma: no cover
+        await client.aclose()  # ty: ignore[unresolved-attribute]
+        return
+
+    suffix = uuid.uuid4().hex
+    broker = TimersBroker(
+        client,
+        timeline_key=f"decstr_tl_{suffix}",
+        payloads_key=f"decstr_pl_{suffix}",
+    )
+
+    seen: list[dict] = []
+    event = asyncio.Event()
+
+    @broker.subscriber("topic")
+    async def handler(body: dict) -> None:
+        seen.append(body)
+        event.set()
+
+    payload = {"chat_id": "abc", "message_text": "Ок", "message_id": 3056}
+    try:
+        async with broker:
+            await broker.publish(payload, topic="topic", timer_id="3056")
+            await asyncio.wait_for(event.wait(), timeout=5.0)
+    finally:
+        await client.aclose()  # ty: ignore[unresolved-attribute]
+
+    assert seen == [payload]
 
 
 async def test_legacy_envelope_still_parses(redis_client: Redis) -> None:
