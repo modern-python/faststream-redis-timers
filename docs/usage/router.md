@@ -56,9 +56,12 @@ You can configure polling behaviour per subscriber:
 ```python
 @router.subscriber(
     "high-priority",
-    polling_interval=0.01,   # poll every 10ms
+    polling_interval=0.01,    # poll every 10ms when the queue has work
+    max_polling_interval=0.5, # cap idle-backoff at 500ms (default 5s)
     max_concurrent=20,        # up to 20 handlers may run in parallel
     lease_ttl=60,             # hold lease for up to 60 seconds
 )
 async def handle_urgent(message: str) -> None: ...
 ```
+
+All `@broker.subscriber` options are accepted by `@router.subscriber` and `TimersRoute` — see the [subscriber page](./subscriber.md) for the full list.
