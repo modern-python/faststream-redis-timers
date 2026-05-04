@@ -45,8 +45,17 @@ The `publish()` method on a publisher accepts the parameters below and returns t
 | `timer_id` | auto UUID | Unique ID for the timer — use for idempotency |
 | `activate_in` | `timedelta(0)` | Delay before delivery (fires immediately if 0) |
 | `activate_at` | `None` | Absolute timezone-aware datetime to fire at. Mutually exclusive with `activate_in` |
-| `correlation_id` | auto UUID | Correlation ID for tracing — round-trips to the handler |
+| `correlation_id` | same as `timer_id` | Correlation ID for tracing — round-trips to the handler. Defaults to the resolved `timer_id` (which is itself an auto UUID when not supplied) |
 | `headers` | `None` | `dict[str, Any]` of headers — round-trips to the handler |
+
+!!! note "`correlation_id` defaults to `timer_id`"
+    If you omit `correlation_id`, it falls back to the resolved `timer_id` —
+    not a fresh UUID. When `timer_id` is also auto-generated, the two end up
+    equal but each unique. When you supply your own `timer_id` (e.g.
+    `"invoice-INV-001-due"`) for idempotent retries, omitting `correlation_id`
+    means every retry of that timer carries the *same* correlation ID. Pass
+    `correlation_id` explicitly if your tracing pipeline needs per-publish
+    uniqueness.
 
 ### Tracing & headers example
 
