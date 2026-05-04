@@ -57,6 +57,13 @@ The `publish()` method on a publisher accepts the parameters below and returns t
     `correlation_id` explicitly if your tracing pipeline needs per-publish
     uniqueness.
 
+!!! note "Past activation times fire immediately"
+    `activate_in=timedelta(seconds=-5)` and `activate_at` set in the past both
+    schedule the timer at a negative-relative score — the next subscriber poll
+    picks it up and fires it. No error is raised; this lets `activate_at`
+    computations that take "marginally too long" still deliver. If you want
+    strict scheduling, validate at the call site before publishing.
+
 ### Tracing & headers example
 
 ```python

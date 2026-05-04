@@ -45,8 +45,10 @@ The `timer_id` is available as the message's `message_id`. Inject it via `Contex
 ```python
 from faststream import Context
 from faststream_redis_timers import TimersBroker
+from redis.asyncio import Redis
 
-broker = TimersBroker()
+client = Redis.from_url("redis://localhost:6379")
+broker = TimersBroker(client)
 
 
 @broker.subscriber("invoices")
@@ -79,10 +81,12 @@ Configure polling behaviour per subscriber:
 async def handle_urgent(body: str) -> None: ...
 ```
 
-The poll loop uses adaptive backoff: when there are no due timers, the next sleep doubles from `polling_interval` up to `max_polling_interval` and is multiplied by a random factor in `[0.5, 1.5]` to avoid thundering-herd bursts across worker fleets. The counter resets the moment a poll returns work. Worst-case delivery latency for a newly-published timer in a previously-idle queue is `max_polling_interval × 1.5`.
+The poll loop uses adaptive backoff: when there are no due timers, the next sleep doubles from `polling_interval` up to `max_polling_interval` and is multiplied by a random factor in `[0.5, 1.5]` to avoid thundering-herd bursts across worker fleets. The counter resets the moment a poll returns work. Worst-case delivery latency for a newly-published timer in a previously-idle queue is `max_polling_interval × 1.5`, plus any time spent waiting for the `max_concurrent` limiter when in-flight handlers are still holding capacity (back-pressure).
 
 !!! warning "Handlers must be idempotent and concurrency-safe"
     A handler that runs longer than `lease_ttl`, or a worker that crashes after the handler ran but before the commit landed, may cause the timer to be delivered more than once. Design handlers to be safe under retry. Because `max_concurrent` invocations run in parallel, handlers must also be safe under concurrent execution (no unsynchronized shared state).
+
+    A handler that raises *every* time is also retried indefinitely — the lease score expires after `lease_ttl` seconds and the next poll re-claims the timer, so `lease_ttl` is the lower bound on the retry interval (e.g., the default `lease_ttl=30` retries a poison-pill handler about twice a minute). Raise `faststream.exceptions.RejectMessage` from your handler to permanently drop a timer that should never be retried.
 
 ## Ack policy
 
