@@ -1,8 +1,10 @@
 import asyncio
+import logging
 import warnings
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import faststream.asgi.factories.asyncapi.try_it_out
 import pytest
 from faststream.exceptions import IncorrectState
@@ -298,6 +300,119 @@ async def test_consume_sets_start_signal_when_ping_returns_false() -> None:
 
     async with broker:
         await asyncio.sleep(0.05)
+
+
+# --- topic must be non-empty (B8) ---
+
+
+async def test_publish_rejects_empty_topic() -> None:
+    broker = TimersBroker(AsyncMock())
+    with pytest.raises(ValueError, match="topic must be a non-empty string"):
+        await broker.publish("msg", topic="")
+
+
+async def test_cancel_timer_rejects_empty_topic() -> None:
+    broker = TimersBroker(AsyncMock())
+    with pytest.raises(ValueError, match="topic must be a non-empty string"):
+        await broker.cancel_timer("", "id")
+
+
+async def test_has_pending_rejects_empty_topic() -> None:
+    broker = TimersBroker(AsyncMock())
+    with pytest.raises(ValueError, match="topic must be a non-empty string"):
+        await broker.has_pending("", "id")
+
+
+async def test_get_pending_timers_rejects_empty_topic() -> None:
+    broker = TimersBroker(AsyncMock())
+    with pytest.raises(ValueError, match="topic must be a non-empty string"):
+        await broker.get_pending_timers("")
+
+
+async def test_cancel_all_rejects_empty_topic() -> None:
+    broker = TimersBroker(AsyncMock())
+    with pytest.raises(ValueError, match="topic must be a non-empty string"):
+        await broker.cancel_all("")
+
+
+# --- error path log format (B6) ---
+
+
+async def test_consume_logs_get_msgs_error_with_repr() -> None:
+    """A Redis error during _get_msgs is logged at ERROR with `{e!r}` so the type and msg survive Sentry truncation."""
+    client = AsyncMock()
+    client.ping.return_value = True
+    client.zrangebyscore.side_effect = ConnectionError("redis down")
+    broker = TimersBroker(client, start_timeout=2.0)
+
+    @broker.subscriber("topic", polling_interval=0.05)
+    async def handler(body: str) -> None: ...
+
+    sub = next(iter(broker._subscribers))  # noqa: SLF001
+    log_calls: list[dict[str, object]] = []
+    sub._log = MagicMock(side_effect=lambda **kwargs: log_calls.append(kwargs))  # noqa: SLF001  # ty: ignore[invalid-assignment]
+
+    async with broker:
+        await asyncio.sleep(0.1)
+
+    error_logs = [c for c in log_calls if c.get("log_level") == logging.ERROR]
+    assert error_logs, "expected at least one ERROR log"
+    msg = error_logs[0]["message"]
+    assert isinstance(msg, str)
+    assert "Message fetch error" in msg
+    assert "ConnectionError('redis down')" in msg
+
+
+async def test_claim_and_consume_logs_unhandled_error_with_repr() -> None:
+    """An unhandled error inside the limiter block is logged with `{raw_id!r}` and `{e!r}`."""
+    client = AsyncMock()
+    broker = TimersBroker(client)
+    sub = broker.subscriber("topic")
+    await broker.connect()
+
+    log_calls: list[dict[str, object]] = []
+    sub._log = MagicMock(side_effect=lambda **kwargs: log_calls.append(kwargs))  # noqa: SLF001  # ty: ignore[invalid-assignment]
+
+    limiter = anyio.CapacityLimiter(1)
+    raw_id = b"timer-1"
+
+    with patch(
+        "faststream_redis_timers.subscriber.usecase.eval_cached",
+        new=AsyncMock(side_effect=RuntimeError("boom")),
+    ):
+        await sub._claim_and_consume(raw_id, 30, limiter, client)  # noqa: SLF001
+
+    error_logs = [c for c in log_calls if c.get("log_level") == logging.ERROR]
+    assert error_logs
+    msg = error_logs[0]["message"]
+    assert isinstance(msg, str)
+    assert "b'timer-1'" in msg
+    assert "RuntimeError('boom')" in msg
+
+
+# --- non-UTF-8 timer id recovery (B2) ---
+
+
+async def test_claim_and_consume_drops_non_utf8_id() -> None:
+    """A non-UTF-8 raw_id is removed from both keys so polls recover instead of looping forever."""
+    client = AsyncMock()
+    pipe = MagicMock()
+    pipe.__aenter__ = AsyncMock(return_value=pipe)
+    pipe.__aexit__ = AsyncMock(return_value=None)
+    pipe.execute = AsyncMock(return_value=[1, 1])
+    client.pipeline = MagicMock(return_value=pipe)
+
+    broker = TimersBroker(client)
+    sub = broker.subscriber("topic")
+    await broker.connect()
+    bad_id = b"\xff\xfe-broken"
+    limiter = anyio.CapacityLimiter(1)
+
+    await sub._claim_and_consume(bad_id, 30, limiter, client)  # noqa: SLF001
+
+    pipe.zrem.assert_called_once_with(sub._config.topic_timeline_key, bad_id)  # noqa: SLF001
+    pipe.hdel.assert_called_once_with(sub._config.topic_payloads_key, bad_id)  # noqa: SLF001
+    pipe.execute.assert_awaited_once()
 
 
 # --- eval_cached NOSCRIPT fallback (O1) ---

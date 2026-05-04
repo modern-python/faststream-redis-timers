@@ -33,6 +33,12 @@ if typing.TYPE_CHECKING:
     from faststream._internal.context.repository import ContextRepo
 
 
+def _require_topic(topic: str) -> None:
+    if not topic:
+        msg = "topic must be a non-empty string"
+        raise ValueError(msg)
+
+
 class TimersParamsStorage(DefaultLoggerStorage):
     __max_msg_id_ln = -1
     _max_channel_name = 7
@@ -176,8 +182,8 @@ class TimersBroker(
 
     async def publish(  # noqa: PLR0913
         self,
-        message: "SendableMessage" = None,
-        topic: str = "",
+        message: "SendableMessage",
+        topic: str,
         *,
         timer_id: str = "",
         activate_in: timedelta = timedelta(0),
@@ -185,6 +191,7 @@ class TimersBroker(
         correlation_id: str | None = None,
         headers: dict[str, typing.Any] | None = None,
     ) -> str:
+        _require_topic(topic)
         if not timer_id:
             timer_id = gen_cor_id()
         cmd = TimerPublishCommand(
@@ -201,12 +208,14 @@ class TimersBroker(
 
     async def cancel_timer(self, topic: str, timer_id: str) -> None:
         """Cancel a pending timer. No-op if the timer has already fired or does not exist."""
+        _require_topic(topic)
         full_topic = f"{self.config.broker_config.prefix}{topic}"
         producer = typing.cast("TimersProducer", self.config.broker_config.producer)
         await producer.cancel(full_topic, timer_id)
 
     async def has_pending(self, topic: str, timer_id: str) -> bool:
         """Return True if a timer with this ID is still pending on *topic*."""
+        _require_topic(topic)
         client = self.config.broker_config.connection.client
         score = await client.zscore(self._topic_timeline_key(topic), timer_id)
         return score is not None
@@ -219,6 +228,7 @@ class TimersBroker(
         into the future, so they appear in the default (``before=None``) result but are excluded
         once *before* is set to the current time.
         """
+        _require_topic(topic)
         client = self.config.broker_config.connection.client
         score_max: str | float = before.timestamp() if before is not None else "+inf"
         raw_ids: list[bytes] | list[str] = await client.zrangebyscore(
@@ -233,6 +243,7 @@ class TimersBroker(
         Handlers already executing for a leased timer continue to run to completion;
         their final commit is a no-op because the keys are gone.
         """
+        _require_topic(topic)
         client = self.config.broker_config.connection.client
         timeline_key = self._topic_timeline_key(topic)
         payloads_key = self._topic_payloads_key(topic)
