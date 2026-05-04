@@ -18,6 +18,7 @@ from faststream.message import gen_cor_id
 from faststream.response.publish_type import PublishType
 from faststream.specification.schema import BrokerSpec
 from faststream.specification.schema.extra import Tag, TagDict
+from redis.asyncio.cluster import RedisCluster
 
 from faststream_redis_timers.configs import ConnectionState, RedisClient, TimersBrokerConfig
 from faststream_redis_timers.message import TimerMessage
@@ -99,6 +100,13 @@ class TimersBroker(
         description: str | None = None,
         tags: Iterable[Tag | TagDict] = (),
     ) -> None:
+        if isinstance(client, RedisCluster):
+            msg = (
+                "TimersBroker does not support RedisCluster clients: the timeline and "
+                "payload keys for a topic must live on the same node. Use a single-primary "
+                "Redis (Sentinel-managed primary/replica setups are supported)."
+            )
+            raise TypeError(msg)
         fd_config = FastDependsConfig(use_fastdepends=apply_types)
         connection = ConnectionState(client)
         broker_config = TimersBrokerConfig(
