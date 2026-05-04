@@ -15,6 +15,41 @@ async def handle_invoice(invoice_id: str) -> None:
     print(f"Invoice due: {invoice_id}")
 ```
 
+## How `prefix` works
+
+The `prefix` you pass to `TimersRouter` is concatenated to every topic registered via that router — both subscribers and publishers. Given:
+
+```python
+router = TimersRouter(prefix="my-service:")
+
+@router.subscriber("invoices")
+async def handle_invoice(...): ...
+```
+
+…the subscriber listens on the full topic `my-service:invoices`, and Redis stores its timers under:
+
+- `timers_timeline:my-service:invoices`
+- `timers_payloads:my-service:invoices`
+
+This is the recommended way to isolate multiple services or environments that share one Redis instance — give each its own `TimersRouter` prefix and they will never collide on keys.
+
+### Publishing to a prefixed router
+
+`broker.publish(...)` does **not** know about the router's prefix — it only applies the broker's own prefix (empty by default). To target a prefixed subscriber from `broker.publish`, pass the full topic:
+
+```python
+await broker.publish("INV-001", topic="my-service:invoices", activate_in=...)
+```
+
+Or define a publisher inside the same router and use it — the router's prefix is applied automatically:
+
+```python
+publisher = router.publisher("invoices")
+await publisher.publish("INV-001", activate_in=...)  # lands on my-service:invoices
+```
+
+The same rule applies to `broker.cancel_timer`, `broker.has_pending`, `broker.get_pending_timers`, and `broker.cancel_all`: pass the prefixed topic, or call the equivalent methods through a router-scoped publisher.
+
 ## Including a router in the broker
 
 ```python
