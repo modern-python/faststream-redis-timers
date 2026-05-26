@@ -158,6 +158,12 @@ broker = TimersBroker(
 )
 ```
 
+## Part of `modern-python`
+
+Browse the full list of templates and libraries in
+[`modern-python`](https://github.com/modern-python) — see the org profile for the
+categorized index.
+
 ## 📚 [Documentation](https://faststream-redis-timers.readthedocs.io)
 
 ## 📦 [PyPi](https://pypi.org/project/faststream-redis-timers)
