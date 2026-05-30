@@ -8,6 +8,11 @@ faststream-redis-timers
 
 Schedule messages to be delivered to subscribers at a future point in time, with **at-least-once** delivery across multiple workers.
 
+> **Already using Postgres?** Prefer [`faststream-outbox`](https://github.com/modern-python/faststream-outbox), which also supports
+> [timers](https://faststream-outbox.readthedocs.io/en/latest/usage/timers/) and lets you schedule a timer in the **same SQLAlchemy
+> transaction** as the domain write — no dual-write between your DB and Redis. Reach for `faststream-redis-timers` when your stack
+> doesn't include Postgres, or when you want timer scheduling decoupled from your relational store.
+
 ```python
 from datetime import timedelta
 from faststream import FastStream
