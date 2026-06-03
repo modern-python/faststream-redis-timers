@@ -90,9 +90,9 @@ async def test_envelope_binary_safe(broker: TimersBroker) -> None:
     assert seen == [nasty]
 
 
-def test_envelope_size_smaller_than_legacy() -> None:
+async def test_envelope_size_smaller_than_legacy() -> None:
     body = b"x" * 1024
-    new = TimerMessageFormat.encode(
+    new = await TimerMessageFormat.encode(
         message=body,
         reply_to=None,
         headers=None,

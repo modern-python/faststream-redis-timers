@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import warnings
 from datetime import UTC, datetime
@@ -7,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import anyio
 import faststream.asgi.factories.asyncapi.try_it_out
 import pytest
+from faststream._internal.parser import DefaultCodec
 from faststream.exceptions import IncorrectState
 from redis.asyncio.cluster import RedisCluster
 from redis.exceptions import NoScriptError
@@ -15,6 +17,7 @@ from faststream_redis_timers import TestTimersBroker, TimersBroker
 from faststream_redis_timers.broker import TimersParamsStorage
 from faststream_redis_timers.configs import ConnectionState
 from faststream_redis_timers.message import TimerStreamMessage
+from faststream_redis_timers.publisher.producer import TimersProducer
 from faststream_redis_timers.router import TimersRoute, TimersRoutePublisher, TimersRouter
 from faststream_redis_timers.subscriber.lua import eval_cached
 
@@ -442,3 +445,14 @@ def test_distinct_topics_do_not_warn() -> None:
         async def handler_b(body: str) -> None: ...
 
     assert not [w for w in caught if "Duplicate subscriber" in str(w.message)]
+
+
+def test_timers_producer_satisfies_producer_proto_codec() -> None:
+    """0.7's ProducerProto requires a `codec: CodecProto` attribute."""
+    assert isinstance(TimersProducer.codec, DefaultCodec)
+
+
+def test_create_publisher_fake_subscriber_is_instance_method() -> None:
+    """0.7's TestBroker base declares the method as an instance method."""
+    sig = inspect.signature(TestTimersBroker.create_publisher_fake_subscriber)
+    assert next(iter(sig.parameters)) == "self"

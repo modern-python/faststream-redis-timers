@@ -1,11 +1,14 @@
 import typing
 
+from faststream._internal.parser import DefaultCodec
+
 from faststream_redis_timers.envelope import TimerMessageFormat
 from faststream_redis_timers.response import TimerPublishCommand
 
 
 if typing.TYPE_CHECKING:
     from fast_depends.library.serializer import SerializerProto
+    from faststream._internal.parser import CodecProto
     from faststream._internal.types import AsyncCallable
 
     from faststream_redis_timers.configs import ConnectionState
@@ -14,6 +17,7 @@ if typing.TYPE_CHECKING:
 class TimersProducer:
     _parser: "AsyncCallable"
     _decoder: "AsyncCallable"
+    codec: "CodecProto" = DefaultCodec()
 
     def __init__(
         self,
@@ -30,7 +34,7 @@ class TimersProducer:
 
     async def publish(self, cmd: TimerPublishCommand) -> None:
         client = self._connection.client
-        payload = TimerMessageFormat.encode(
+        payload = await TimerMessageFormat.encode(
             message=cmd.body,
             reply_to=cmd.reply_to,
             headers=cmd.headers,
