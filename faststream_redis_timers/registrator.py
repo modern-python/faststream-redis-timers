@@ -1,10 +1,10 @@
 import warnings
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from typing import Any, override
 
 from fast_depends.dependencies import Dependant
 from faststream._internal.broker.registrator import Registrator
-from faststream._internal.types import CustomCallable, PublisherMiddleware, SubscriberMiddleware
+from faststream._internal.types import CustomCallable
 
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.publisher.factory import create_publisher
@@ -26,7 +26,6 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
         dependencies: Iterable[Dependant] = (),
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
-        middlewares: Sequence[SubscriberMiddleware[TimerMessage]] = (),
         title_: str | None = None,
         description_: str | None = None,
         include_in_schema: bool = True,
@@ -58,7 +57,6 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
             parser_=parser or self._parser,
             decoder_=decoder or self._decoder,
             dependencies_=dependencies,
-            middlewares_=middlewares,
         )
 
     @override
@@ -66,7 +64,6 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
         self,
         topic: str,
         *,
-        middlewares: Sequence[PublisherMiddleware] = (),
         schema_: Any | None = None,
         title_: str | None = None,
         description_: str | None = None,
@@ -75,7 +72,6 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
         publisher = create_publisher(
             topic=topic,
             config=self.config,  # ty: ignore[invalid-argument-type]
-            middlewares=middlewares,
             title_=title_,
             description_=description_,
             schema_=schema_,

@@ -5,7 +5,7 @@ from fast_depends.dependencies import Dependant
 from faststream._internal.basic_types import SendableMessage
 from faststream._internal.broker.router import ArgsContainer, BrokerRouter, SubscriberRoute
 from faststream._internal.configs import BrokerConfig
-from faststream._internal.types import BrokerMiddleware, CustomCallable, PublisherMiddleware, SubscriberMiddleware
+from faststream._internal.types import BrokerMiddleware, CustomCallable
 
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.registrator import TimersRegistrator
@@ -14,11 +14,10 @@ from faststream_redis_timers.registrator import TimersRegistrator
 class TimersRoutePublisher(ArgsContainer):
     """Delayed TimersPublisher registration object."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         topic: str,
         *,
-        middlewares: Sequence[PublisherMiddleware] = (),
         schema_: Any | None = None,
         title_: str | None = None,
         description_: str | None = None,
@@ -26,7 +25,6 @@ class TimersRoutePublisher(ArgsContainer):
     ) -> None:
         super().__init__(
             topic=topic,
-            middlewares=middlewares,
             schema_=schema_,
             title_=title_,
             description_=description_,
@@ -50,7 +48,6 @@ class TimersRoute(SubscriberRoute):
         dependencies: Iterable[Dependant] = (),
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
-        middlewares: Sequence[SubscriberMiddleware[TimerMessage]] = (),
         title_: str | None = None,
         description_: str | None = None,
         include_in_schema: bool = True,
@@ -66,7 +63,6 @@ class TimersRoute(SubscriberRoute):
             dependencies=dependencies,
             parser=parser,
             decoder=decoder,
-            middlewares=middlewares,
             title_=title_,
             description_=description_,
             include_in_schema=include_in_schema,

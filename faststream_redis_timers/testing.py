@@ -38,8 +38,14 @@ class TestTimersBroker(TestBroker[TimersBroker]):
         super().__init__(broker, **kwargs)
         self.scheduled_timers = []
 
-    @staticmethod
+    async def __aenter__(self) -> TimersBroker:
+        # __init__ enforces a single broker, so upstream's multi-broker list branch is unreachable.
+        result = await super().__aenter__()
+        assert not isinstance(result, list)  # noqa: S101
+        return result
+
     def create_publisher_fake_subscriber(
+        self,
         broker: TimersBroker,
         publisher: TimersPublisher,
     ) -> tuple[TimersSubscriber, bool]:
@@ -94,7 +100,7 @@ class FakeTimersProducer(TimersProducer):
         self.scheduled_timers = scheduled_timers if scheduled_timers is not None else []
 
     async def publish(self, cmd: TimerPublishCommand) -> None:
-        payload = TimerMessageFormat.encode(
+        payload = await TimerMessageFormat.encode(
             message=cmd.body,
             reply_to=cmd.reply_to,
             headers=cmd.headers,
