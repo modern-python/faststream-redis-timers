@@ -31,18 +31,12 @@ class ScheduledTimer:
     headers: dict[str, typing.Any] | None = None
 
 
-class TestTimersBroker(TestBroker[TimersBroker]):
+class TestTimersBroker(TestBroker[TimersBroker, TimersBroker]):
     scheduled_timers: list[ScheduledTimer]
 
     def __init__(self, broker: TimersBroker, **kwargs: typing.Any) -> None:
         super().__init__(broker, **kwargs)
         self.scheduled_timers = []
-
-    async def __aenter__(self) -> TimersBroker:
-        # __init__ enforces a single broker, so upstream's multi-broker list branch is unreachable.
-        result = await super().__aenter__()
-        assert not isinstance(result, list)  # noqa: S101
-        return result
 
     def create_publisher_fake_subscriber(
         self,
