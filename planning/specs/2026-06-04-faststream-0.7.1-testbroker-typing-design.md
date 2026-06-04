@@ -128,19 +128,29 @@ Matches upstream's new `try_it_out._get_broker_registry` signature.
 Current (line 12): `"faststream>=0.7,<0.8",`
 After:           `"faststream>=0.7.1,<0.8",`
 
-### `tests/test_unit.py` — new regression test
+### `tests/test_fake.py` — new regression test
 
-Placed near the existing `test_create_publisher_fake_subscriber_is_instance_method`
-(currently at line 455), since both guard the 0.7.x typing contract.
+Appended to `tests/test_fake.py` (not `tests/test_unit.py`): the test enters
+the `TestTimersBroker` context manager, which is the established `test_fake.py`
+pattern. `test_unit.py` is reserved for pure unit tests per `CLAUDE.md`.
 
 ```python
 async def test_test_broker_aenter_returns_single_timers_broker() -> None:
-    """0.7.1's EnterType binding means TestTimersBroker yields a single TimersBroker, not a list/tuple."""
+    """0.7.1's EnterType binding means TestTimersBroker yields a single TimersBroker, not a list/tuple.
+
+    Guards the contract through the upstream typing refactor: even if the base
+    class signature changes again, our single-broker subclass must always hand
+    back a single broker instance.
+    """
     broker = TimersBroker()
     async with TestTimersBroker(broker) as tb:
         assert isinstance(tb, TimersBroker)
-        assert not isinstance(tb, (list, tuple))
 ```
+
+The single `isinstance(tb, TimersBroker)` assertion is sufficient: since
+`TimersBroker` is not a `list` or `tuple` subclass, the redundant
+`assert not isinstance(tb, (list, tuple))` originally proposed adds no
+additional safety. The docstring covers the intent.
 
 ## Validation
 
@@ -152,7 +162,7 @@ Run in order:
    - `tests/test_fake.py` — every test uses `async with TestTimersBroker(broker)`.
      If the base `__aenter__` is wired correctly through `EnterType`, these
      run unchanged. If not, `tb.publish(...)` on line 17 will fail.
-   - The new regression test from `tests/test_unit.py`.
+   - The new regression test from `tests/test_fake.py`.
    - `tests/test_unit.py::test_create_publisher_fake_subscriber_is_instance_method`
      — independent existing guard, should still pass.
 4. Type check (`ty check faststream_redis_timers/ tests/`) — the project
