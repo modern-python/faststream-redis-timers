@@ -183,3 +183,16 @@ async def test_scheduled_timers_empty_initially() -> None:
     async with test_broker:
         pass
     assert test_broker.scheduled_timers == []
+
+
+async def test_test_broker_aenter_returns_single_timers_broker() -> None:
+    """
+    0.7.1's EnterType binding means TestTimersBroker yields a single TimersBroker, not a list/tuple.
+
+    Guards the contract through the upstream typing refactor: even if the base
+    class signature changes again, our single-broker subclass must always hand
+    back a single broker instance.
+    """
+    broker = TimersBroker()
+    async with TestTimersBroker(broker) as tb:
+        assert isinstance(tb, TimersBroker)

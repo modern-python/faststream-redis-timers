@@ -25,7 +25,9 @@ try:
     original_get_broker_registry = faststream.asgi.factories.asyncapi.try_it_out._get_broker_registry  # noqa: SLF001
 
     @functools.lru_cache(maxsize=1)
-    def get_broker_registry() -> dict[type[BrokerUsecase[typing.Any, typing.Any]], type[TestBroker[typing.Any]]]:
+    def get_broker_registry() -> dict[
+        type[BrokerUsecase[typing.Any, typing.Any]], type[TestBroker[typing.Any, typing.Any]]
+    ]:
         return {**original_get_broker_registry(), TimersBroker: TestTimersBroker}
 
     faststream.asgi.factories.asyncapi.try_it_out._get_broker_registry = get_broker_registry  # noqa: SLF001
