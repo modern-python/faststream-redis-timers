@@ -186,7 +186,8 @@ async def test_scheduled_timers_empty_initially() -> None:
 
 
 async def test_test_broker_aenter_returns_single_timers_broker() -> None:
-    """0.7.1's EnterType binding means TestTimersBroker yields a single TimersBroker, not a list/tuple.
+    """
+    0.7.1's EnterType binding means TestTimersBroker yields a single TimersBroker, not a list/tuple.
 
     Guards the contract through the upstream typing refactor: even if the base
     class signature changes again, our single-broker subclass must always hand
