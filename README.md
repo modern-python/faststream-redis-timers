@@ -1,8 +1,16 @@
-faststream-redis-timers
-==
+# faststream-redis-timers
 
-[![Supported versions](https://img.shields.io/pypi/pyversions/faststream-redis-timers.svg)](https://pypi.python.org/pypi/faststream-redis-timers)
-[![downloads](https://img.shields.io/pypi/dm/faststream-redis-timers.svg)](https://pypistats.org/packages/faststream-redis-timers)
+[![PyPI version](https://img.shields.io/pypi/v/faststream-redis-timers.svg)](https://pypi.org/project/faststream-redis-timers/)
+[![Supported Python versions](https://img.shields.io/pypi/pyversions/faststream-redis-timers.svg)](https://pypi.org/project/faststream-redis-timers/)
+[![Downloads](https://img.shields.io/pypi/dm/faststream-redis-timers.svg)](https://pypistats.org/packages/faststream-redis-timers)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/modern-python/faststream-redis-timers/actions/workflows/ci.yml)
+[![CI](https://github.com/modern-python/faststream-redis-timers/actions/workflows/ci.yml/badge.svg)](https://github.com/modern-python/faststream-redis-timers/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/modern-python/faststream-redis-timers.svg)](https://github.com/modern-python/faststream-redis-timers/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/modern-python/faststream-redis-timers)](https://github.com/modern-python/faststream-redis-timers/stargazers)
+[![Context7](https://img.shields.io/badge/Context7-docs-blue)](https://context7.com/modern-python/faststream-redis-timers)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![ty](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json)](https://github.com/astral-sh/ty)
 
 `faststream-redis-timers` is a [FastStream](https://faststream.airt.ai) broker integration for Redis-backed distributed timer scheduling.
 
@@ -163,14 +171,13 @@ broker = TimersBroker(
 )
 ```
 
+## 📚 [Documentation](https://faststream-redis-timers.modern-python.org)
+
+## 📦 [PyPI](https://pypi.org/project/faststream-redis-timers)
+
+## 📝 [License](LICENSE)
+
 ## Part of `modern-python`
 
 Browse the full list of templates and libraries in
-[`modern-python`](https://github.com/modern-python) — see the org profile for the
-categorized index.
-
-## 📚 [Documentation](https://faststream-redis-timers.modern-python.org)
-
-## 📦 [PyPi](https://pypi.org/project/faststream-redis-timers)
-
-## 📝 [License](LICENSE)
+[`modern-python`](https://github.com/modern-python) — see the org profile for the categorized index.
