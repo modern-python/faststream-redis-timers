@@ -1,13 +1,23 @@
 [project]
 name = "faststream-redis-timers"
 version="0"
-description = "FastStream broker integration for Redis-backed distributed timer scheduling"
+description = "FastStream integration for Redis-backed distributed timer scheduling"
 authors = [
     { name = "Artur Shiriev", email = "me@shiriev.ru" },
 ]
 readme = "README.md"
 requires-python = ">=3.13,<4"
 license = "MIT"
+keywords = ["faststream", "redis", "scheduler", "timers", "distributed", "messaging", "asyncio", "python"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+    "Topic :: Software Development :: Libraries",
+]
 dependencies = [
     "faststream>=0.7.1,<0.8",
     "redis>=5.0",
@@ -67,6 +77,12 @@ isort.no-lines-before = ["standard-library", "local-folder"]
 addopts = "--cov=. --cov-report term-missing --cov-fail-under=100"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+
+[project.urls]
+Homepage = "https://modern-python.org"
+Repository = "https://github.com/modern-python/faststream-redis-timers"
+Issues = "https://github.com/modern-python/faststream-redis-timers/issues"
+Changelog = "https://github.com/modern-python/faststream-redis-timers/releases"
 
 [tool.coverage.report]
 exclude_also = ["if typing.TYPE_CHECKING:"]
