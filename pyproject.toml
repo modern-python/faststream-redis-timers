@@ -78,7 +78,8 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
 [project.urls]
-Homepage = "https://modern-python.org"
+Homepage = "https://faststream-redis-timers.modern-python.org"
+Documentation = "https://faststream-redis-timers.modern-python.org"
 Repository = "https://github.com/modern-python/faststream-redis-timers"
 Issues = "https://github.com/modern-python/faststream-redis-timers/issues"
 Changelog = "https://github.com/modern-python/faststream-redis-timers/releases"
