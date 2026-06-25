@@ -353,7 +353,7 @@ async def test_consume_logs_get_msgs_error_with_repr() -> None:
 
     sub = next(iter(broker._subscribers))  # noqa: SLF001
     log_calls: list[dict[str, object]] = []
-    sub._log = MagicMock(side_effect=lambda **kwargs: log_calls.append(kwargs))  # noqa: SLF001  # ty: ignore[invalid-assignment]
+    sub._log = MagicMock(side_effect=lambda **kwargs: log_calls.append(kwargs))  # noqa: SLF001
 
     async with broker:
         await asyncio.sleep(0.1)
@@ -374,7 +374,7 @@ async def test_claim_and_consume_logs_unhandled_error_with_repr() -> None:
     await broker.connect()
 
     log_calls: list[dict[str, object]] = []
-    sub._log = MagicMock(side_effect=lambda **kwargs: log_calls.append(kwargs))  # noqa: SLF001  # ty: ignore[invalid-assignment]
+    sub._log = MagicMock(side_effect=lambda **kwargs: log_calls.append(kwargs))  # noqa: SLF001
 
     limiter = anyio.CapacityLimiter(1)
     raw_id = b"timer-1"
