@@ -71,8 +71,7 @@ class TimersBroker(
         BrokerConfig,  # Use BrokerConfig to avoid typing issues when passing to FastStream app
     ],
 ):
-    """
-    FastStream broker for Redis-backed distributed timer scheduling.
+    """FastStream broker for Redis-backed distributed timer scheduling.
 
     The supplied Redis client is *not* closed by the broker; the caller owns the
     client's lifecycle. Use ``async with Redis.from_url(...) as client:`` (or call
@@ -221,8 +220,7 @@ class TimersBroker(
         return score is not None
 
     async def get_pending_timers(self, topic: str, before: datetime | None = None) -> list[str]:
-        """
-        Return pending timer IDs on *topic*. If *before* is given, restrict to timers due by then.
+        """Return pending timer IDs on *topic*. If *before* is given, restrict to timers due by then.
 
         Note that timers currently being processed have their score pushed ``lease_ttl`` seconds
         into the future, so they appear in the default (``before=None``) result but are excluded
@@ -237,8 +235,7 @@ class TimersBroker(
         return [r.decode() if isinstance(r, bytes) else r for r in raw_ids]
 
     async def cancel_all(self, topic: str) -> int:
-        """
-        Cancel every pending timer on *topic*. Returns the number removed.
+        """Cancel every pending timer on *topic*. Returns the number removed.
 
         Handlers already executing for a leased timer continue to run to completion;
         their final commit is a no-op because the keys are gone.
