@@ -6,8 +6,7 @@ from faststream.response.response import BatchPublishCommand, PublishCommand
 
 
 def resolve_activate_at(activate_in: timedelta, activate_at: datetime | None) -> datetime:
-    """
-    Resolve ``(activate_in, activate_at)`` into a single absolute UTC datetime.
+    """Resolve ``(activate_in, activate_at)`` into a single absolute UTC datetime.
 
     Raises ``ValueError`` if both are non-default, or if ``activate_at`` is naive.
     A past ``activate_at`` is returned unchanged — fires immediately, same as

@@ -1,8 +1,8 @@
-# Design: FastStream 0.7 migration (two-PR split)
+---
+summary: Migrate faststream ~=0.6 to >=0.7,<0.8 in two PRs (defensive pin + planning scaffold, then 0.7 migration dropping per-call middlewares=).
+---
 
-**Date:** 2026-06-03
-**Status:** Approved
-**Slug:** `faststream-0.7-migration`
+# Design: FastStream 0.7 migration (two-PR split)
 
 ## Summary
 

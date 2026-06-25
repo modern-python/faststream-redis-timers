@@ -18,8 +18,7 @@ class TimerMessage(TypedDict):
 
 
 class TimerStreamMessage(StreamMessage["TimerMessage"]):
-    """
-    Stream message that removes the timer from Redis only on ack/reject.
+    """Stream message that removes the timer from Redis only on ack/reject.
 
     Lease-based at-least-once delivery: the timer remains in the timeline
     (with its score pushed forward by `lease_ttl`) while the handler runs.

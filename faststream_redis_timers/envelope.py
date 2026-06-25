@@ -1,5 +1,4 @@
-"""
-Wire format for timer payloads.
+"""Wire format for timer payloads.
 
 Wraps FastStream's :class:`BinaryMessageFormatV1` with a one-shot reader for
 the legacy v0.x JSON-of-hex envelope (``{"b": "<hex>", "ct": "..."}``) so

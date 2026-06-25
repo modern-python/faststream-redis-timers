@@ -1,8 +1,8 @@
-# FastStream 0.7.1 TestBroker typing alignment — design
+---
+summary: Adopt upstream FastStream 0.7.1 TestBroker typing fix; drop the TestTimersBroker __aenter__ workaround and align generics.
+---
 
-**Status:** Draft
-**Date:** 2026-06-04
-**Slug:** `faststream-0.7.1-testbroker-typing`
+# FastStream 0.7.1 TestBroker typing alignment — design
 
 ## Goal
 

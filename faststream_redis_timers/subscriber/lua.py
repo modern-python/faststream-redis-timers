@@ -1,5 +1,4 @@
-"""
-Lua scripts for atomic timer claim/commit.
+"""Lua scripts for atomic timer claim/commit.
 
 `CLAIM_LUA`: lease a due timer. Atomically checks the timer is still due
 (score <= now) and pushes its score forward by `lease_ttl`. Returns the
@@ -52,8 +51,7 @@ async def eval_cached(
     num_keys: int,
     *args: typing.Any,
 ) -> typing.Any:
-    """
-    Run a script via EVALSHA, falling back to SCRIPT LOAD + EVALSHA on NOSCRIPT.
+    """Run a script via EVALSHA, falling back to SCRIPT LOAD + EVALSHA on NOSCRIPT.
 
     Uses ``NEVER_DECODE`` so the script's reply is returned as raw bytes even when the
     Redis client was constructed with ``decode_responses=True``: the timer payload is

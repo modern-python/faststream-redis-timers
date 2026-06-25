@@ -1,7 +1,8 @@
-# mkdocs → GitHub Actions migration + action version bumps
+---
+summary: Move docs hosting to GitHub Pages via Actions, align CI with modern-di reusable _checks.yml, and bump pinned action versions.
+---
 
-**Date:** 2026-06-09
-**Status:** Approved (design)
+# mkdocs → GitHub Actions migration + action version bumps
 
 ## Goal
 
