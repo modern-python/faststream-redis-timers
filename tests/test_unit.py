@@ -19,8 +19,7 @@ from faststream_redis_timers.configs import ConnectionState
 from faststream_redis_timers.message import TimerStreamMessage
 from faststream_redis_timers.publisher.producer import TimersProducer
 from faststream_redis_timers.router import TimersRoute, TimersRoutePublisher, TimersRouter
-from faststream_redis_timers.store import TimerStore
-from faststream_redis_timers.subscriber.lua import eval_cached
+from faststream_redis_timers.store import TimerStore, _eval_cached
 
 
 # --- AsyncAPI try_it_out registry ---
@@ -413,7 +412,7 @@ async def test_eval_cached_falls_back_on_noscript() -> None:
     client.execute_command.side_effect = [NoScriptError("NOSCRIPT"), b"ok"]
     client.script_load.return_value = "abc123"
 
-    result = await eval_cached(client, "return 1", "abc123", 0)
+    result = await _eval_cached(client, "return 1", "abc123", 0)
 
     assert result == b"ok"
     assert client.execute_command.await_count == 2
@@ -515,7 +514,7 @@ async def test_timer_store_due_non_utf8_self_heal() -> None:
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
 
-    with patch("faststream_redis_timers.store.eval_cached", new=AsyncMock(return_value=None)) as mock_eval:
+    with patch("faststream_redis_timers.store._eval_cached", new=AsyncMock(return_value=None)) as mock_eval:
         result = await store.due("topic", 1000.0, 5)
 
     assert result == ["good-id"]
@@ -530,7 +529,7 @@ async def test_timer_store_claim_found() -> None:
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
 
-    with patch("faststream_redis_timers.store.eval_cached", new=AsyncMock(return_value=payload)) as mock_eval:
+    with patch("faststream_redis_timers.store._eval_cached", new=AsyncMock(return_value=payload)) as mock_eval:
         result = await store.claim("topic", "id-1", 1000.0, 30)
 
     assert result == payload
@@ -544,7 +543,7 @@ async def test_timer_store_claim_contested() -> None:
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
 
-    with patch("faststream_redis_timers.store.eval_cached", new=AsyncMock(return_value=None)):
+    with patch("faststream_redis_timers.store._eval_cached", new=AsyncMock(return_value=None)):
         result = await store.claim("topic", "id-1", 1000.0, 30)
 
     assert result is None
@@ -556,7 +555,7 @@ async def test_timer_store_remove() -> None:
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
 
-    with patch("faststream_redis_timers.store.eval_cached", new=AsyncMock(return_value=None)) as mock_eval:
+    with patch("faststream_redis_timers.store._eval_cached", new=AsyncMock(return_value=None)) as mock_eval:
         await store.remove("topic", "id-1")
 
     mock_eval.assert_awaited_once()

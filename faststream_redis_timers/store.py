@@ -2,15 +2,73 @@
 
 Every caller (producer, subscriber, message, broker inspection) crosses this
 interface; the raw Redis key derivation and Lua dispatch stay behind it.
+
+Lua scripts for atomic timer claim/commit
+-----------------------------------------
+``_CLAIM_LUA``: lease a due timer. Atomically checks the timer is still due
+(score <= now) and pushes its score forward by ``lease_ttl``. Returns the
+payload bytes, or nil if the timer is not due (already leased, canceled,
+or scheduled for the future).
+
+``_COMMIT_LUA``: remove a timer after successful processing. Always succeeds.
+
+Both scripts are dispatched via :func:`_eval_cached`, which uses ``EVALSHA``
+with a ``NOSCRIPT`` fallback to ``SCRIPT LOAD`` so the script body only
+crosses the wire once per Redis instance lifetime.
 """
 
+import hashlib
 import typing
 
-from faststream_redis_timers.subscriber.lua import CLAIM_LUA, CLAIM_SHA, COMMIT_LUA, COMMIT_SHA, eval_cached
+from redis.client import NEVER_DECODE
+from redis.exceptions import NoScriptError
 
 
 if typing.TYPE_CHECKING:
-    from faststream_redis_timers.configs import ConnectionState
+    from faststream_redis_timers.configs import ConnectionState, RedisClient
+
+
+_CLAIM_LUA = """\
+local score = redis.call('ZSCORE', KEYS[1], ARGV[1])
+if not score or tonumber(score) > tonumber(ARGV[2]) then return nil end
+local payload = redis.call('HGET', KEYS[2], ARGV[1])
+if not payload then
+    redis.call('ZREM', KEYS[1], ARGV[1])
+    return nil
+end
+redis.call('ZADD', KEYS[1], ARGV[3], ARGV[1])
+return payload
+"""
+
+_COMMIT_LUA = """\
+redis.call('ZREM', KEYS[1], ARGV[1])
+redis.call('HDEL', KEYS[2], ARGV[1])
+"""
+
+_CLAIM_SHA = hashlib.sha1(_CLAIM_LUA.encode(), usedforsecurity=False).hexdigest()
+_COMMIT_SHA = hashlib.sha1(_COMMIT_LUA.encode(), usedforsecurity=False).hexdigest()
+
+
+async def _eval_cached(
+    client: "RedisClient",
+    script: str,
+    sha: str,
+    num_keys: int,
+    *args: typing.Any,
+) -> typing.Any:
+    """Run a script via EVALSHA, falling back to SCRIPT LOAD + EVALSHA on NOSCRIPT.
+
+    Uses ``NEVER_DECODE`` so the script's reply is returned as raw bytes even when the
+    Redis client was constructed with ``decode_responses=True``: the timer payload is
+    a binary envelope (BinaryMessageFormatV1) and forcing UTF-8 decoding on it would
+    fail at the first non-ASCII byte.
+    """
+    options = {NEVER_DECODE: []}
+    try:
+        return await client.execute_command("EVALSHA", sha, num_keys, *args, **options)
+    except NoScriptError:
+        await client.script_load(script)
+        return await client.execute_command("EVALSHA", sha, num_keys, *args, **options)
 
 
 class TimerStore:
@@ -63,7 +121,7 @@ class TimerStore:
                 try:
                     result.append(raw_id.decode())
                 except UnicodeDecodeError:
-                    await eval_cached(client, COMMIT_LUA, COMMIT_SHA, 2, tl_key, pl_key, raw_id)
+                    await _eval_cached(client, _COMMIT_LUA, _COMMIT_SHA, 2, tl_key, pl_key, raw_id)
             else:
                 result.append(raw_id)
         return result
@@ -78,8 +136,8 @@ class TimerStore:
         tl_key, pl_key = self._keys(full_topic)
         client = self._connection.client
         claim_score = now + lease_ttl
-        result: bytes | None = await eval_cached(
-            client, CLAIM_LUA, CLAIM_SHA, 2, tl_key, pl_key, timer_id, now, claim_score
+        result: bytes | None = await _eval_cached(
+            client, _CLAIM_LUA, _CLAIM_SHA, 2, tl_key, pl_key, timer_id, now, claim_score
         )
         return result
 
@@ -91,7 +149,7 @@ class TimerStore:
         """
         tl_key, pl_key = self._keys(full_topic)
         client = self._connection.client
-        await eval_cached(client, COMMIT_LUA, COMMIT_SHA, 2, tl_key, pl_key, timer_id)
+        await _eval_cached(client, _COMMIT_LUA, _COMMIT_SHA, 2, tl_key, pl_key, timer_id)
 
     async def pending(self, full_topic: str, before: float | None = None) -> list[str]:
         """Return all pending timer IDs, optionally restricted to those due by *before*.
