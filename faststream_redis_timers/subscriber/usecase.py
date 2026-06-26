@@ -14,7 +14,6 @@ from faststream.specification.schema import Message, Operation, SubscriberSpec
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.parser.parser import TimerParser
 from faststream_redis_timers.subscriber.config import TimersSubscriberConfig, TimersSubscriberSpecificationConfig
-from faststream_redis_timers.subscriber.lua import CLAIM_LUA, CLAIM_SHA, eval_cached
 
 
 # Cap exponent so 2 ** count cannot overflow into useless float ops once delay is at the cap.
@@ -132,52 +131,28 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
             return -1
 
         now = time.time()
-        timer_ids: list[bytes] | list[str] = await client.zrangebyscore(
-            self._config.topic_timeline_key, "-inf", now, start=0, num=free
-        )
+        timer_ids: list[str] = await self._outer_config.store.due(self._config.full_topic, now, free)
         if not timer_ids:
             return 0
 
         self._log(log_level=logging.DEBUG, message=f"Fetched {len(timer_ids)} due timers")
         lease_ttl = self._config.timer_sub.lease_ttl
-        for raw_id in timer_ids:
-            tg.start_soon(self._claim_and_consume, raw_id, lease_ttl, limiter, client)
+        for timer_id in timer_ids:
+            tg.start_soon(self._claim_and_consume, timer_id, lease_ttl, limiter, client)
         return len(timer_ids)
 
     async def _claim_and_consume(
         self,
-        raw_id: bytes | str,
+        timer_id: str,
         lease_ttl: int,
         limiter: anyio.CapacityLimiter,
-        client: "RedisClient",
+        client: "RedisClient",  # noqa: ARG002
     ) -> None:
-        try:
-            timer_id = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
-        except UnicodeDecodeError as e:
-            self._log(
-                log_level=logging.WARNING,
-                message=f"Dropping timer with non-UTF-8 id {raw_id!r}: {e!r}",
-            )
-            async with client.pipeline(transaction=True) as pipe:
-                pipe.zrem(self._config.topic_timeline_key, raw_id)
-                pipe.hdel(self._config.topic_payloads_key, raw_id)
-                await pipe.execute()
-            return
-
         try:
             async with limiter:
                 now = time.time()
-                claim_score = now + lease_ttl
-                raw_payload: bytes | None = await eval_cached(
-                    client,
-                    CLAIM_LUA,
-                    CLAIM_SHA,
-                    2,
-                    self._config.topic_timeline_key,
-                    self._config.topic_payloads_key,
-                    timer_id,
-                    now,
-                    claim_score,
+                raw_payload: bytes | None = await self._outer_config.store.claim(
+                    self._config.full_topic, timer_id, now, lease_ttl
                 )
                 if raw_payload is None:
                     self._log(
@@ -196,7 +171,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         except Exception as e:  # noqa: BLE001
             self._log(
                 log_level=logging.ERROR,
-                message=f"Timer {raw_id!r} consume error: {e!r}",
+                message=f"Timer {timer_id!r} consume error: {e!r}",
                 exc_info=e,
             )
 

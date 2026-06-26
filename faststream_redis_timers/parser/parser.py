@@ -1,4 +1,5 @@
 import typing
+from functools import partial
 
 from faststream.message import decode_message
 
@@ -18,6 +19,7 @@ class TimerParser:
     async def parse_message(self, msg: "TimerMessage") -> TimerStreamMessage:
         body, headers = TimerMessageFormat.parse(msg["data"])
         timer_id = msg["timer_id"]
+        store = self._config._outer_config.store  # noqa: SLF001
         return TimerStreamMessage(
             raw_message=msg,
             body=body,
@@ -26,10 +28,7 @@ class TimerParser:
             message_id=timer_id,
             correlation_id=headers.get("correlation_id", timer_id),
             reply_to=headers.get("reply_to", ""),
-            client=self._config._outer_config.connection.client,  # noqa: SLF001
-            timeline_key=self._config.topic_timeline_key,
-            payloads_key=self._config.topic_payloads_key,
-            timer_id=timer_id,
+            _remove=partial(store.remove, self._config.full_topic, timer_id),
         )
 
     async def decode_message(self, msg: TimerStreamMessage) -> typing.Any:

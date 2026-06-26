@@ -19,7 +19,7 @@ from faststream_redis_timers.configs import ConnectionState
 from faststream_redis_timers.message import TimerStreamMessage
 from faststream_redis_timers.publisher.producer import TimersProducer
 from faststream_redis_timers.router import TimersRoute, TimersRoutePublisher, TimersRouter
-from faststream_redis_timers.subscriber.lua import eval_cached
+from faststream_redis_timers.store import TimerStore, _eval_cached
 
 
 # --- AsyncAPI try_it_out registry ---
@@ -190,6 +190,20 @@ async def test_timer_stream_message_nack() -> None:
         correlation_id="id",
     )
     await msg.nack()  # must not raise
+
+
+async def test_timer_stream_message_ack_without_remove_is_noop() -> None:
+    # _remove=None means ack/reject skip the store call (no thunk to call).
+    msg = TimerStreamMessage(
+        raw_message={"type": "timer", "channel": "topic", "timer_id": "id", "data": b""},
+        body=b"data",
+        headers={},
+        content_type=None,
+        message_id="id",
+        correlation_id="id",
+        _remove=None,
+    )
+    await msg.ack()  # must not raise; covers the `if self._remove is None: return` branch
 
 
 # --- Subscriber._make_response_publisher ---
@@ -367,7 +381,7 @@ async def test_consume_logs_get_msgs_error_with_repr() -> None:
 
 
 async def test_claim_and_consume_logs_unhandled_error_with_repr() -> None:
-    """An unhandled error inside the limiter block is logged with `{raw_id!r}` and `{e!r}`."""
+    """An unhandled error inside the limiter block is logged with `{timer_id!r}` and `{e!r}`."""
     client = AsyncMock()
     broker = TimersBroker(client)
     sub = broker.subscriber("topic")
@@ -377,45 +391,17 @@ async def test_claim_and_consume_logs_unhandled_error_with_repr() -> None:
     sub._log = MagicMock(side_effect=lambda **kwargs: log_calls.append(kwargs))  # noqa: SLF001
 
     limiter = anyio.CapacityLimiter(1)
-    raw_id = b"timer-1"
+    timer_id = "timer-1"
 
-    with patch(
-        "faststream_redis_timers.subscriber.usecase.eval_cached",
-        new=AsyncMock(side_effect=RuntimeError("boom")),
-    ):
-        await sub._claim_and_consume(raw_id, 30, limiter, client)  # noqa: SLF001
+    with patch.object(sub._outer_config.store, "claim", new=AsyncMock(side_effect=RuntimeError("boom"))):  # noqa: SLF001
+        await sub._claim_and_consume(timer_id, 30, limiter, client)  # noqa: SLF001
 
     error_logs = [c for c in log_calls if c.get("log_level") == logging.ERROR]
     assert error_logs
     msg = error_logs[0]["message"]
     assert isinstance(msg, str)
-    assert "b'timer-1'" in msg
+    assert "'timer-1'" in msg
     assert "RuntimeError('boom')" in msg
-
-
-# --- non-UTF-8 timer id recovery (B2) ---
-
-
-async def test_claim_and_consume_drops_non_utf8_id() -> None:
-    """A non-UTF-8 raw_id is removed from both keys so polls recover instead of looping forever."""
-    client = AsyncMock()
-    pipe = MagicMock()
-    pipe.__aenter__ = AsyncMock(return_value=pipe)
-    pipe.__aexit__ = AsyncMock(return_value=None)
-    pipe.execute = AsyncMock(return_value=[1, 1])
-    client.pipeline = MagicMock(return_value=pipe)
-
-    broker = TimersBroker(client)
-    sub = broker.subscriber("topic")
-    await broker.connect()
-    bad_id = b"\xff\xfe-broken"
-    limiter = anyio.CapacityLimiter(1)
-
-    await sub._claim_and_consume(bad_id, 30, limiter, client)  # noqa: SLF001
-
-    pipe.zrem.assert_called_once_with(sub._config.topic_timeline_key, bad_id)  # noqa: SLF001
-    pipe.hdel.assert_called_once_with(sub._config.topic_payloads_key, bad_id)  # noqa: SLF001
-    pipe.execute.assert_awaited_once()
 
 
 # --- eval_cached NOSCRIPT fallback (O1) ---
@@ -426,7 +412,7 @@ async def test_eval_cached_falls_back_on_noscript() -> None:
     client.execute_command.side_effect = [NoScriptError("NOSCRIPT"), b"ok"]
     client.script_load.return_value = "abc123"
 
-    result = await eval_cached(client, "return 1", "abc123", 0)
+    result = await _eval_cached(client, "return 1", "abc123", 0)
 
     assert result == b"ok"
     assert client.execute_command.await_count == 2
@@ -456,3 +442,201 @@ def test_create_publisher_fake_subscriber_is_instance_method() -> None:
     """0.7's TestBroker base declares the method as an instance method."""
     sig = inspect.signature(TestTimersBroker.create_publisher_fake_subscriber)
     assert next(iter(sig.parameters)) == "self"
+
+
+# --- TimerStore ---
+
+
+def test_timer_store_key_derivation() -> None:
+    """Keys are f'{timeline_key}:{full_topic}' and f'{payloads_key}:{full_topic}'."""
+    store = TimerStore(ConnectionState(), "tl", "pl")
+    tl, pl = store._keys("my-topic")  # noqa: SLF001
+    assert tl == "tl:my-topic"
+    assert pl == "pl:my-topic"
+
+
+async def test_timer_store_schedule() -> None:
+    """schedule() writes timer_id→activation_ts in ZADD and timer_id→payload in HSET via pipeline."""
+    client = AsyncMock()
+    pipe = MagicMock()
+    pipe.__aenter__ = AsyncMock(return_value=pipe)
+    pipe.__aexit__ = AsyncMock(return_value=None)
+    pipe.execute = AsyncMock(return_value=[1, 1])
+    client.pipeline = MagicMock(return_value=pipe)
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+    await store.schedule("topic", "id-1", b"data", 1000.0)
+
+    pipe.zadd.assert_called_once_with("tl:topic", {"id-1": 1000.0})
+    pipe.hset.assert_called_once_with("pl:topic", "id-1", b"data")
+    pipe.execute.assert_awaited_once()
+
+
+async def test_timer_store_due_bytes_client() -> None:
+    """due() decodes bytes IDs for a bytes-mode Redis client."""
+    client = AsyncMock()
+    client.zrangebyscore = AsyncMock(return_value=[b"timer-1", b"timer-2"])
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+    result = await store.due("topic", 1000.0, 10)
+
+    assert result == ["timer-1", "timer-2"]
+    client.zrangebyscore.assert_awaited_once_with("tl:topic", "-inf", 1000.0, start=0, num=10)
+
+
+async def test_timer_store_due_str_client() -> None:
+    """due() passes str IDs through unchanged for a str-mode Redis client."""
+    client = AsyncMock()
+    client.zrangebyscore = AsyncMock(return_value=["timer-1", "timer-2"])
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+    result = await store.due("topic", 1000.0, 10)
+
+    assert result == ["timer-1", "timer-2"]
+
+
+async def test_timer_store_due_empty() -> None:
+    """due() returns an empty list when no timers are due."""
+    client = AsyncMock()
+    client.zrangebyscore = AsyncMock(return_value=[])
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+    result = await store.due("topic", 1000.0, 10)
+
+    assert result == []
+
+
+async def test_timer_store_due_non_utf8_self_heal() -> None:
+    """due() removes non-UTF-8 members via COMMIT_LUA and excludes them from the result."""
+    bad_id = b"\xff\xfe-broken"
+    client = AsyncMock()
+    client.zrangebyscore = AsyncMock(return_value=[bad_id, b"good-id"])
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+
+    with patch("faststream_redis_timers.store._eval_cached", new=AsyncMock(return_value=None)) as mock_eval:
+        result = await store.due("topic", 1000.0, 5)
+
+    assert result == ["good-id"]
+    mock_eval.assert_awaited_once()
+    assert bad_id in mock_eval.call_args.args
+
+
+async def test_timer_store_claim_found() -> None:
+    """claim() returns the payload bytes when the timer is successfully claimed."""
+    client = AsyncMock()
+    payload = b"timer-payload"
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+
+    with patch("faststream_redis_timers.store._eval_cached", new=AsyncMock(return_value=payload)) as mock_eval:
+        result = await store.claim("topic", "id-1", 1000.0, 30)
+
+    assert result == payload
+    # claim_score = now + lease_ttl = 1000.0 + 30 = 1030.0
+    assert 1030.0 in mock_eval.call_args.args
+
+
+async def test_timer_store_claim_contested() -> None:
+    """claim() returns None when the timer is already leased or canceled."""
+    client = AsyncMock()
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+
+    with patch("faststream_redis_timers.store._eval_cached", new=AsyncMock(return_value=None)):
+        result = await store.claim("topic", "id-1", 1000.0, 30)
+
+    assert result is None
+
+
+async def test_timer_store_remove() -> None:
+    """remove() calls COMMIT_LUA for both the timeline and payloads keys."""
+    client = AsyncMock()
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+
+    with patch("faststream_redis_timers.store._eval_cached", new=AsyncMock(return_value=None)) as mock_eval:
+        await store.remove("topic", "id-1")
+
+    mock_eval.assert_awaited_once()
+    args = mock_eval.call_args.args
+    assert "tl:topic" in args
+    assert "pl:topic" in args
+    assert "id-1" in args
+
+
+async def test_timer_store_pending_no_before() -> None:
+    """pending() with no before= uses '+inf' as the score ceiling (all pending timers)."""
+    client = AsyncMock()
+    client.zrangebyscore = AsyncMock(return_value=["id-1", "id-2"])
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+    result = await store.pending("topic")
+
+    assert result == ["id-1", "id-2"]
+    client.zrangebyscore.assert_awaited_once_with("tl:topic", "-inf", "+inf")
+
+
+async def test_timer_store_pending_with_before() -> None:
+    """pending() with before=float restricts results to timers due by that timestamp."""
+    client = AsyncMock()
+    client.zrangebyscore = AsyncMock(return_value=[])
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+    result = await store.pending("topic", before=500.0)
+
+    assert result == []
+    client.zrangebyscore.assert_awaited_once_with("tl:topic", "-inf", 500.0)
+
+
+async def test_timer_store_pending_bytes_client() -> None:
+    """pending() decodes bytes IDs for a bytes-mode Redis client."""
+    client = AsyncMock()
+    client.zrangebyscore = AsyncMock(return_value=[b"id-1", b"id-2"])
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+    result = await store.pending("topic")
+
+    assert result == ["id-1", "id-2"]
+
+
+async def test_timer_store_is_pending_true() -> None:
+    """is_pending() returns True when ZSCORE returns a score (timer exists)."""
+    client = AsyncMock()
+    client.zscore = AsyncMock(return_value=1000.0)
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+    result = await store.is_pending("topic", "id-1")
+
+    assert result is True
+    client.zscore.assert_awaited_once_with("tl:topic", "id-1")
+
+
+async def test_timer_store_is_pending_false() -> None:
+    """is_pending() returns False when ZSCORE returns None (timer absent)."""
+    client = AsyncMock()
+    client.zscore = AsyncMock(return_value=None)
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+    result = await store.is_pending("topic", "id-1")
+
+    assert result is False
+
+
+async def test_timer_store_cancel_all() -> None:
+    """cancel_all() UNLINKs both keys and returns the pre-removal ZCARD count."""
+    client = AsyncMock()
+    pipe = MagicMock()
+    pipe.__aenter__ = AsyncMock(return_value=pipe)
+    pipe.__aexit__ = AsyncMock(return_value=None)
+    pipe.execute = AsyncMock(return_value=[7, 1, 1])
+    client.pipeline = MagicMock(return_value=pipe)
+
+    store = TimerStore(ConnectionState(client), "tl", "pl")
+    result = await store.cancel_all("topic")
+
+    assert result == 7
+    pipe.zcard.assert_called_once_with("tl:topic")
+    pipe.unlink.assert_any_call("tl:topic")
+    pipe.unlink.assert_any_call("pl:topic")
+    pipe.execute.assert_awaited_once()

@@ -11,7 +11,7 @@ if typing.TYPE_CHECKING:
     from faststream._internal.parser import CodecProto
     from faststream._internal.types import AsyncCallable
 
-    from faststream_redis_timers.configs import ConnectionState
+    from faststream_redis_timers.store import TimerStore
 
 
 class TimersProducer:
@@ -22,18 +22,13 @@ class TimersProducer:
     def __init__(
         self,
         *,
-        connection: "ConnectionState",
-        timeline_key: str,
-        payloads_key: str,
+        store: "TimerStore",
         serializer: "SerializerProto | None" = None,
     ) -> None:
-        self._connection = connection
-        self._timeline_key = timeline_key
-        self._payloads_key = payloads_key
+        self._store = store
         self.serializer = serializer
 
     async def publish(self, cmd: TimerPublishCommand) -> None:
-        client = self._connection.client
         payload = await TimerMessageFormat.encode(
             message=cmd.body,
             reply_to=cmd.reply_to,
@@ -41,24 +36,10 @@ class TimersProducer:
             correlation_id=cmd.correlation_id or "",
             serializer=self.serializer,
         )
-
-        timeline_key = f"{self._timeline_key}:{cmd.destination}"
-        payloads_key = f"{self._payloads_key}:{cmd.destination}"
-        activation_ts = cmd.activate_at.timestamp()
-
-        async with client.pipeline(transaction=True) as pipe:
-            pipe.zadd(timeline_key, {cmd.timer_id: activation_ts})
-            pipe.hset(payloads_key, cmd.timer_id, payload)
-            await pipe.execute()
+        await self._store.schedule(cmd.destination, cmd.timer_id, payload, cmd.activate_at.timestamp())
 
     async def cancel(self, full_topic: str, timer_id: str) -> None:
-        client = self._connection.client
-        timeline_key = f"{self._timeline_key}:{full_topic}"
-        payloads_key = f"{self._payloads_key}:{full_topic}"
-        async with client.pipeline(transaction=True) as pipe:
-            pipe.zrem(timeline_key, timer_id)
-            pipe.hdel(payloads_key, timer_id)
-            await pipe.execute()
+        await self._store.remove(full_topic, timer_id)
 
     async def request(self, cmd: TimerPublishCommand) -> typing.NoReturn:  # pragma: no cover
         msg = "Timers do not support request-reply"

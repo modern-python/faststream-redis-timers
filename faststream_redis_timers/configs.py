@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from faststream._internal.configs import BrokerConfig
 from faststream.exceptions import IncorrectState
 
+from faststream_redis_timers.store import TimerStore
+
 
 if typing.TYPE_CHECKING:
     from redis.asyncio import Redis
@@ -36,9 +38,8 @@ class ConnectionState:
 @dataclass(kw_only=True)
 class TimersBrokerConfig(BrokerConfig):
     connection: ConnectionState
-    timeline_key: str = "timers_timeline"
-    payloads_key: str = "timers_payloads"
     start_timeout: float = 3.0
+    store: TimerStore
 
     async def connect(self) -> None:
         await self.connection.connect()

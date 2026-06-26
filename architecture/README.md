@@ -11,8 +11,11 @@ These files carry **no frontmatter** — they are prose, dated by git.
 ## Capabilities
 
 Capability files (`architecture/<capability>.md`) are authored over time as the
-system's behavior is documented. None exist yet — the first change that pins
-down a capability creates its page here.
+system's behavior is documented.
+
+- [`timer-store.md`](timer-store.md) — the `TimerStore`: the single module that
+  owns the Redis timer protocol (timeline sorted-set, payloads hash, Lua claim/
+  remove) and topic-key derivation across every topic.
 
 ## Promotion rule
 

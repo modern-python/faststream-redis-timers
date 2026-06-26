@@ -1,16 +1,13 @@
 import typing
-from typing import TypedDict
 
 from faststream.message import StreamMessage
 
-from faststream_redis_timers.subscriber.lua import COMMIT_LUA, COMMIT_SHA, eval_cached
-
 
 if typing.TYPE_CHECKING:
-    from faststream_redis_timers.configs import RedisClient
+    from collections.abc import Awaitable, Callable
 
 
-class TimerMessage(TypedDict):
+class TimerMessage(typing.TypedDict):
     type: typing.Literal["timer"]
     channel: str
     timer_id: str
@@ -29,30 +26,16 @@ class TimerStreamMessage(StreamMessage["TimerMessage"]):
     def __init__(
         self,
         *args: typing.Any,
-        client: "RedisClient | None" = None,
-        timeline_key: str = "",
-        payloads_key: str = "",
-        timer_id: str = "",
+        _remove: "Callable[[], Awaitable[None]] | None" = None,
         **kwargs: typing.Any,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self._client = client
-        self._timeline_key = timeline_key
-        self._payloads_key = payloads_key
-        self._timer_id = timer_id
+        self._remove = _remove
 
     async def _commit(self) -> None:
-        if self._client is None or not self._timer_id:
+        if self._remove is None:
             return
-        await eval_cached(
-            self._client,
-            COMMIT_LUA,
-            COMMIT_SHA,
-            2,
-            self._timeline_key,
-            self._payloads_key,
-            self._timer_id,
-        )
+        await self._remove()
 
     async def ack(self) -> None:
         if self.committed is None:

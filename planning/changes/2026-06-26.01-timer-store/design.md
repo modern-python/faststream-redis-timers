@@ -1,5 +1,5 @@
 ---
-summary: Extract a deep TimerStore that owns the Redis timer protocol (timeline + payloads + lease Lua) and topic-key derivation, collapsing five scattered Redis touch-points behind one interface.
+summary: Shipped TimerStore in store.py owning the Redis timer protocol (timeline + payloads + Lua claim/remove) and topic-key derivation; five scattered touch-points collapsed behind one interface, subscriber/lua.py deleted, cancel paths upgraded to a single atomic Lua remove.
 ---
 
 # Timer store — design
