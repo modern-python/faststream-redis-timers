@@ -26,6 +26,7 @@ from faststream_redis_timers.publisher.producer import TimersProducer
 from faststream_redis_timers.publisher.usecase import TimersPublisher
 from faststream_redis_timers.registrator import TimersRegistrator
 from faststream_redis_timers.response import TimerPublishCommand, resolve_activate_at
+from faststream_redis_timers.store import TimerStore
 from faststream_redis_timers.subscriber.usecase import TimersSubscriber
 
 
@@ -114,11 +115,13 @@ class TimersBroker(
             raise TypeError(msg)
         fd_config = FastDependsConfig(use_fastdepends=apply_types)
         connection = ConnectionState(client)
+        store = TimerStore(connection, timeline_key, payloads_key)
         broker_config = TimersBrokerConfig(
             connection=connection,
             timeline_key=timeline_key,
             payloads_key=payloads_key,
             start_timeout=start_timeout,
+            store=store,
             broker_middlewares=middlewares,
             broker_parser=parser,
             broker_decoder=decoder,
@@ -132,9 +135,7 @@ class TimersBroker(
             graceful_timeout=graceful_timeout,
             extra_context={"broker": self},
             producer=TimersProducer(
-                connection=connection,
-                timeline_key=timeline_key,
-                payloads_key=payloads_key,
+                store=store,
                 serializer=fd_config._serializer,  # noqa: SLF001
             ),
         )
