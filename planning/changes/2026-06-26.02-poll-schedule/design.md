@@ -1,5 +1,5 @@
 ---
-summary: Extract the subscriber's inline poll-loop backoff into a pure, table-testable PollSchedule; _consume keeps only I/O and control flow.
+summary: Extracted the subscriber's poll-loop backoff into a pure, table-tested PollSchedule (subscriber/schedule.py); _consume now holds only I/O and control flow. Behavior-preserving.
 ---
 
 # Poll schedule — design
