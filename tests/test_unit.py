@@ -20,6 +20,12 @@ from faststream_redis_timers.message import TimerStreamMessage
 from faststream_redis_timers.publisher.producer import TimersProducer
 from faststream_redis_timers.router import TimersRoute, TimersRoutePublisher, TimersRouter
 from faststream_redis_timers.store import TimerStore, _eval_cached
+from faststream_redis_timers.subscriber.schedule import (
+    _MAX_ERROR_DELAY,
+    _MAX_EXPONENT,
+    PollSchedule,
+    _default_jitter,
+)
 
 
 # --- AsyncAPI try_it_out registry ---
@@ -640,3 +646,171 @@ async def test_timer_store_cancel_all() -> None:
     pipe.unlink.assert_any_call("tl:topic")
     pipe.unlink.assert_any_call("pl:topic")
     pipe.execute.assert_awaited_once()
+
+
+# --- PollSchedule ---
+
+
+def test_poll_schedule_busy_returns_zero() -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    assert sched.delay_after_fetch(1) == 0.0
+
+
+def test_poll_schedule_busy_resets_idle_count() -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    # ramp idle counter to 3
+    sched.delay_after_fetch(0)
+    sched.delay_after_fetch(0)
+    sched.delay_after_fetch(0)
+    # busy resets idle_count to 0
+    sched.delay_after_fetch(1)
+    # next idle call: idle_count becomes 1, returns base * 2**0 = 0.05
+    result: float = sched.delay_after_fetch(0)
+    assert result == pytest.approx(0.05)
+
+
+@pytest.mark.parametrize(
+    ("call_count", "expected"),
+    [
+        (1, 0.05),
+        (2, 0.10),
+        (3, 0.20),
+        (4, 0.40),
+        (5, 0.80),
+    ],
+)
+def test_poll_schedule_idle_ramp(call_count: int, expected: float) -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    result: float = 0.0
+    for _ in range(call_count):
+        result = sched.delay_after_fetch(0)
+    assert result == pytest.approx(expected)
+
+
+def test_poll_schedule_idle_caps_at_max_idle() -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    # drive enough idle calls to saturate the counter and the cap
+    for _ in range(200):
+        sched.delay_after_fetch(0)
+    result: float = sched.delay_after_fetch(0)
+    assert result == 5.0
+
+
+def test_poll_schedule_back_pressure_returns_base() -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    result: float = sched.delay_after_fetch(-1)
+    assert result == pytest.approx(0.05)
+
+
+def test_poll_schedule_back_pressure_does_not_change_idle_count() -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    # ramp idle_count to 3
+    sched.delay_after_fetch(0)
+    sched.delay_after_fetch(0)
+    sched.delay_after_fetch(0)
+    # back-pressure: idle_count stays at 3
+    sched.delay_after_fetch(-1)
+    # next idle: idle_count becomes 4 → 0.05 * 2**(4-1) = 0.05 * 8 = 0.40
+    result: float = sched.delay_after_fetch(0)
+    assert result == pytest.approx(0.05 * 2**3)
+
+
+@pytest.mark.parametrize(
+    ("call_count", "expected"),
+    [
+        (1, 1.0),
+        (2, 2.0),
+        (3, 4.0),
+        (4, 8.0),
+        (5, 16.0),
+    ],
+)
+def test_poll_schedule_error_ramp(call_count: int, expected: float) -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    result: float = 0.0
+    for _ in range(call_count):
+        result = sched.delay_after_error()
+    assert result == pytest.approx(expected)
+
+
+def test_poll_schedule_error_caps_at_max_error_delay() -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    for _ in range(200):
+        sched.delay_after_error()
+    result: float = sched.delay_after_error()
+    assert result == _MAX_ERROR_DELAY
+
+
+def test_poll_schedule_error_exponent_cap_no_overflow() -> None:
+    # Drive well past _MAX_EXPONENT — counter caps, no OverflowError, delay stays at cap.
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    for _ in range(_MAX_EXPONENT + 50):
+        sched.delay_after_error()
+    result: float = sched.delay_after_error()
+    assert result == _MAX_ERROR_DELAY
+
+
+def test_poll_schedule_any_fetch_resets_error_attempt_idle_zero() -> None:
+    # delay_after_fetch(0) resets error_attempt; next error() restarts at 1.0
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    sched.delay_after_error()
+    sched.delay_after_error()
+    sched.delay_after_error()
+    sched.delay_after_fetch(0)
+    result: float = sched.delay_after_error()
+    assert result == pytest.approx(1.0)
+
+
+def test_poll_schedule_any_fetch_resets_error_attempt_busy() -> None:
+    # delay_after_fetch(1) resets error_attempt; next error() restarts at 1.0
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    sched.delay_after_error()
+    sched.delay_after_error()
+    sched.delay_after_fetch(1)
+    result: float = sched.delay_after_error()
+    assert result == pytest.approx(1.0)
+
+
+def test_poll_schedule_any_fetch_resets_error_attempt_back_pressure() -> None:
+    # delay_after_fetch(-1) resets error_attempt; next error() restarts at 1.0
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    sched.delay_after_error()
+    sched.delay_after_error()
+    sched.delay_after_fetch(-1)
+    result: float = sched.delay_after_error()
+    assert result == pytest.approx(1.0)
+
+
+def test_poll_schedule_idle_jitter_low_bound() -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 0.5)
+    result: float = sched.delay_after_fetch(0)
+    # idle_count=1 → base * 2**0 * 0.5 = 0.05 * 0.5 = 0.025
+    assert result == pytest.approx(0.05 * 0.5)
+
+
+def test_poll_schedule_idle_jitter_high_bound() -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.5)
+    result: float = sched.delay_after_fetch(0)
+    # idle_count=1 → base * 2**0 * 1.5 = 0.05 * 1.5 = 0.075
+    assert result == pytest.approx(0.05 * 1.5)
+
+
+def test_poll_schedule_error_jitter_low_bound() -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 0.5)
+    result: float = sched.delay_after_error()
+    # error_attempt=1 → 2**0 * 0.5 = 0.5
+    assert result == pytest.approx(0.5)
+
+
+def test_poll_schedule_error_jitter_high_bound() -> None:
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.5)
+    result: float = sched.delay_after_error()
+    # error_attempt=1 → 2**0 * 1.5 = 1.5
+    assert result == pytest.approx(1.5)
+
+
+def test_poll_schedule_default_jitter_is_in_bounds() -> None:
+    # Exercise _default_jitter (covers the random.uniform branch).
+    for _ in range(20):
+        value: float = _default_jitter()
+        assert 0.5 <= value <= 1.5
