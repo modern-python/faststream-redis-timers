@@ -368,7 +368,7 @@ async def test_consume_logs_get_msgs_error_with_repr() -> None:
 
 
 async def test_claim_and_consume_logs_unhandled_error_with_repr() -> None:
-    """An unhandled error inside the limiter block is logged with `{raw_id!r}` and `{e!r}`."""
+    """An unhandled error inside the limiter block is logged with `{timer_id!r}` and `{e!r}`."""
     client = AsyncMock()
     broker = TimersBroker(client)
     sub = broker.subscriber("topic")
@@ -378,45 +378,17 @@ async def test_claim_and_consume_logs_unhandled_error_with_repr() -> None:
     sub._log = MagicMock(side_effect=lambda **kwargs: log_calls.append(kwargs))  # noqa: SLF001
 
     limiter = anyio.CapacityLimiter(1)
-    raw_id = b"timer-1"
+    timer_id = "timer-1"
 
-    with patch(
-        "faststream_redis_timers.subscriber.usecase.eval_cached",
-        new=AsyncMock(side_effect=RuntimeError("boom")),
-    ):
-        await sub._claim_and_consume(raw_id, 30, limiter, client)  # noqa: SLF001
+    with patch.object(sub._outer_config.store, "claim", new=AsyncMock(side_effect=RuntimeError("boom"))):  # noqa: SLF001
+        await sub._claim_and_consume(timer_id, 30, limiter, client)  # noqa: SLF001
 
     error_logs = [c for c in log_calls if c.get("log_level") == logging.ERROR]
     assert error_logs
     msg = error_logs[0]["message"]
     assert isinstance(msg, str)
-    assert "b'timer-1'" in msg
+    assert "'timer-1'" in msg
     assert "RuntimeError('boom')" in msg
-
-
-# --- non-UTF-8 timer id recovery (B2) ---
-
-
-async def test_claim_and_consume_drops_non_utf8_id() -> None:
-    """A non-UTF-8 raw_id is removed from both keys so polls recover instead of looping forever."""
-    client = AsyncMock()
-    pipe = MagicMock()
-    pipe.__aenter__ = AsyncMock(return_value=pipe)
-    pipe.__aexit__ = AsyncMock(return_value=None)
-    pipe.execute = AsyncMock(return_value=[1, 1])
-    client.pipeline = MagicMock(return_value=pipe)
-
-    broker = TimersBroker(client)
-    sub = broker.subscriber("topic")
-    await broker.connect()
-    bad_id = b"\xff\xfe-broken"
-    limiter = anyio.CapacityLimiter(1)
-
-    await sub._claim_and_consume(bad_id, 30, limiter, client)  # noqa: SLF001
-
-    pipe.zrem.assert_called_once_with(sub._config.topic_timeline_key, bad_id)  # noqa: SLF001
-    pipe.hdel.assert_called_once_with(sub._config.topic_payloads_key, bad_id)  # noqa: SLF001
-    pipe.execute.assert_awaited_once()
 
 
 # --- eval_cached NOSCRIPT fallback (O1) ---
