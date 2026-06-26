@@ -8,9 +8,9 @@ Redis sorted-set, hash, or Lua scripts directly.
 ## What it owns
 
 Two Redis keys back every topic: a sorted-set (the timeline, keyed by Activation
-time) and a hash (payloads, keyed by timer id). Both keys are derived from the
-store's base keys as `{base_key}:{full_topic}` — that derivation lives only
-here. Every caller passes a `full_topic` (prefix already applied); the store
+time) and a hash (payloads, keyed by timer id). Both keys are derived from their respective base keys —
+`{timeline_key}:{full_topic}` and `{payloads_key}:{full_topic}` — and that
+derivation lives only here. Every caller passes a `full_topic` (prefix already applied); the store
 derives the topic-specific key pair. There is one `TimerStore` instance per
 broker, not one per topic.
 
@@ -37,10 +37,11 @@ by `lease_ttl` seconds; other workers will not see it as Due until the Lease
 expires. The check-fetch-advance sequence is a single Lua round-trip.
 
 **Remove** deletes a timer from both the timeline and the payloads hash in one
-atomic Lua round-trip. It is the shared implementation for three caller intents:
-Commit (handler success via ack/reject), Cancel (producer-initiated removal
-before the timer fires), and the orphan self-heal inside Due. Public intent is
-expressed at each call site; all three paths funnel here.
+atomic Lua round-trip. It is the public path for two caller intents: Commit
+(handler success via ack/reject) and Cancel (producer-initiated removal before
+the timer fires). The orphan self-heal inside Due invokes the same `_COMMIT_LUA`
+primitive inline rather than routing through `remove()` — the non-decodable id
+that triggers self-heal cannot cross the `str`-typed `remove` signature.
 
 **Pending** returns all Pending timer ids for a topic, optionally restricted to
 those Due by a given timestamp. Leased timers appear in the default (no upper
