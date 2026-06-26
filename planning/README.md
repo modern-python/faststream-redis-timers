@@ -44,8 +44,9 @@ realized result, and run `just check-planning` before pushing.
 
 ### Two axes, never mixed
 
-- **`architecture/` (repo root) — the present.** One file per capability,
-  living prose, updated in the same PR that ships the change. The truth home.
+- **`architecture/` (repo root) — the present.** One file per capability, plus
+  a single `glossary.md` (the ubiquitous language); living prose, updated in the
+  same PR that ships the change. The truth home.
 - **`planning/changes/` — the past-and-pending.** One folder per change,
   kept in place after ship.
 
@@ -54,6 +55,26 @@ A change **promotes** its conclusions into the affected
 code** — the edit rides in the same diff and is reviewed with it, never applied
 as a separate post-merge step. That hand-edit is what keeps `architecture/`
 true; the bundle stays in `changes/` as the *why*.
+
+### Glossary
+
+`architecture/glossary.md` is the project's **ubiquitous language** — one page
+defining the domain terms that code, specs, and capability pages all share. Like
+the capability files beside it, it is living prose with **no frontmatter**, dated
+by git, and authored lazily: it appears when the first term is worth pinning down.
+
+Each entry is a term, a one-or-two-sentence definition of what it *is* (not what
+it does), and an optional `_Avoid_:` line naming the synonyms to reject:
+
+```md
+**Timer**:
+A scheduled future delivery, identified by a timer id.
+_Avoid_: job, task, alarm
+```
+
+Keep it a glossary, not a spec — no implementation detail. A change that
+introduces or sharpens a term updates `glossary.md` in the same PR, the same way
+a behavior change promotes into a capability file.
 
 ### Change bundles
 
@@ -124,6 +145,8 @@ decision.
 - **[`architecture/`](../architecture/)** at the repo root — the living
   capability truth and the promotion target on every ship. Capability files are
   authored over time as the system grows.
+- **[`architecture/glossary.md`](../architecture/glossary.md)** — the ubiquitous
+  language: the domain terms code, specs, and capability pages share.
 - **[changes/](changes/)** — the per-change bundles (`design.md` + `plan.md`,
   or a single `change.md`).
 - **[decisions/](decisions/)** — design decisions taken (and alternatives
