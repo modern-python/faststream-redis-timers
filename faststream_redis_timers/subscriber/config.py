@@ -22,14 +22,6 @@ class TimersSubscriberConfig(SubscriberUsecaseConfig):
         return f"{self._outer_config.prefix}{self.timer_sub.topic}"
 
     @property
-    def topic_timeline_key(self) -> str:
-        return f"{self._outer_config.timeline_key}:{self.full_topic}"
-
-    @property
-    def topic_payloads_key(self) -> str:
-        return f"{self._outer_config.payloads_key}:{self.full_topic}"
-
-    @property
     def ack_policy(self) -> AckPolicy:
         if self._ack_policy is EMPTY:
             return AckPolicy.NACK_ON_ERROR

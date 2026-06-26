@@ -193,6 +193,20 @@ async def test_timer_stream_message_nack() -> None:
     await msg.nack()  # must not raise
 
 
+async def test_timer_stream_message_ack_without_remove_is_noop() -> None:
+    # _remove=None means ack/reject skip the store call (no thunk to call).
+    msg = TimerStreamMessage(
+        raw_message={"type": "timer", "channel": "topic", "timer_id": "id", "data": b""},
+        body=b"data",
+        headers={},
+        content_type=None,
+        message_id="id",
+        correlation_id="id",
+        _remove=None,
+    )
+    await msg.ack()  # must not raise; covers the `if self._remove is None: return` branch
+
+
 # --- Subscriber._make_response_publisher ---
 
 
