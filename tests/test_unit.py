@@ -400,7 +400,7 @@ async def test_claim_and_consume_logs_unhandled_error_with_repr() -> None:
     timer_id = "timer-1"
 
     with patch.object(sub._outer_config.store, "claim", new=AsyncMock(side_effect=RuntimeError("boom"))):  # noqa: SLF001
-        await sub._claim_and_consume(timer_id, 30, limiter, client)  # noqa: SLF001
+        await sub._claim_and_consume(timer_id, 30, limiter)  # noqa: SLF001
 
     error_logs = [c for c in log_calls if c.get("log_level") == logging.ERROR]
     assert error_logs
