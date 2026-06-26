@@ -94,7 +94,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
             while self.running:
                 delay: float = 0.0
                 try:
-                    fetched = await self._get_msgs(client, tg, limiter)
+                    fetched = await self._get_msgs(tg, limiter)
                 except Exception as e:  # noqa: BLE001
                     self._log(log_level=logging.ERROR, message=f"Message fetch error: {e!r}", exc_info=e)
                     delay = schedule.delay_after_error()
@@ -108,7 +108,6 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
 
     async def _get_msgs(
         self,
-        client: "RedisClient",
         tg: "TaskGroup",
         limiter: anyio.CapacityLimiter,
     ) -> int:
@@ -126,7 +125,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         self._log(log_level=logging.DEBUG, message=f"Fetched {len(timer_ids)} due timers")
         lease_ttl = self._config.timer_sub.lease_ttl
         for timer_id in timer_ids:
-            tg.start_soon(self._claim_and_consume, timer_id, lease_ttl, limiter, client)
+            tg.start_soon(self._claim_and_consume, timer_id, lease_ttl, limiter)
         return len(timer_ids)
 
     async def _claim_and_consume(
@@ -134,7 +133,6 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         timer_id: str,
         lease_ttl: int,
         limiter: anyio.CapacityLimiter,
-        client: "RedisClient",  # noqa: ARG002
     ) -> None:
         try:
             async with limiter:
