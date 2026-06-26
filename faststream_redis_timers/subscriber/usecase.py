@@ -1,5 +1,4 @@
 import logging
-import random
 import time
 import typing
 from collections.abc import Sequence
@@ -14,10 +13,7 @@ from faststream.specification.schema import Message, Operation, SubscriberSpec
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.parser.parser import TimerParser
 from faststream_redis_timers.subscriber.config import TimersSubscriberConfig, TimersSubscriberSpecificationConfig
-
-
-# Cap exponent so 2 ** count cannot overflow into useless float ops once delay is at the cap.
-_BACKOFF_EXP_CAP = 30
+from faststream_redis_timers.subscriber.schedule import PollSchedule
 
 
 if typing.TYPE_CHECKING:
@@ -88,35 +84,27 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
             if await client.ping():
                 start_signal.set()
 
-        base = self._config.timer_sub.polling_interval
-        max_idle = self._config.timer_sub.max_polling_interval
-        idle_count = 0
-        error_attempt = 0
+        schedule = PollSchedule(
+            base=self._config.timer_sub.polling_interval,
+            max_idle=self._config.timer_sub.max_polling_interval,
+        )
 
         limiter = anyio.CapacityLimiter(self._config.timer_sub.max_concurrent)
         async with anyio.create_task_group() as tg:
             while self.running:
+                delay: float = 0.0
                 try:
                     fetched = await self._get_msgs(client, tg, limiter)
                 except Exception as e:  # noqa: BLE001
                     self._log(log_level=logging.ERROR, message=f"Message fetch error: {e!r}", exc_info=e)
-                    error_attempt = min(error_attempt + 1, _BACKOFF_EXP_CAP)
-                    delay = min(2.0 ** (error_attempt - 1) * random.uniform(0.5, 1.5), 30.0)  # noqa: S311
-                    await anyio.sleep(delay)
+                    delay = schedule.delay_after_error()
                 else:
-                    error_attempt = 0
-                    if fetched > 0:
-                        idle_count = 0
-                    elif fetched == 0:
-                        idle_count = min(idle_count + 1, _BACKOFF_EXP_CAP)
-                        delay = min(base * (2.0 ** (idle_count - 1)) * random.uniform(0.5, 1.5), max_idle)  # noqa: S311
-                        await anyio.sleep(delay)
-                    else:
-                        # back-pressured (limiter saturated): yield briefly without growing idle counter
-                        await anyio.sleep(base)
+                    delay = schedule.delay_after_fetch(fetched)
                 finally:
                     if not start_signal.is_set():
                         start_signal.set()
+                if delay:
+                    await anyio.sleep(delay)
 
     async def _get_msgs(
         self,
