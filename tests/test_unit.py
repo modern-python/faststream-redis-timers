@@ -702,6 +702,14 @@ def test_poll_schedule_back_pressure_returns_base() -> None:
     assert result == pytest.approx(0.05)
 
 
+def test_poll_schedule_back_pressure_ignores_jitter() -> None:
+    # The -1 path returns base verbatim; a non-1.0 jitter must NOT scale it
+    # (guards against an erroneous `* jitter()` on the back-pressure branch).
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 2.0)
+    result: float = sched.delay_after_fetch(-1)
+    assert result == pytest.approx(0.05)  # base, not 0.10
+
+
 def test_poll_schedule_back_pressure_does_not_change_idle_count() -> None:
     sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
     # ramp idle_count to 3
@@ -711,6 +719,20 @@ def test_poll_schedule_back_pressure_does_not_change_idle_count() -> None:
     # back-pressure: idle_count stays at 3
     sched.delay_after_fetch(-1)
     # next idle: idle_count becomes 4 → 0.05 * 2**(4-1) = 0.05 * 8 = 0.40
+    result: float = sched.delay_after_fetch(0)
+    assert result == pytest.approx(0.05 * 2**3)
+
+
+def test_poll_schedule_error_does_not_change_idle_count() -> None:
+    # delay_after_error() must leave the idle ramp intact (only a busy fetch resets it).
+    sched = PollSchedule(base=0.05, max_idle=5.0, jitter=lambda: 1.0)
+    # ramp idle_count to 3
+    sched.delay_after_fetch(0)
+    sched.delay_after_fetch(0)
+    sched.delay_after_fetch(0)
+    # an error in between must not reset the idle ramp
+    sched.delay_after_error()
+    # next idle: idle_count becomes 4 → 0.05 * 2**(4-1) = 0.40
     result: float = sched.delay_after_fetch(0)
     assert result == pytest.approx(0.05 * 2**3)
 
