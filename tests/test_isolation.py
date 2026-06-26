@@ -17,7 +17,7 @@ async def test_key_without_payload_is_cleaned_up(broker: TimersBroker, redis_cli
         received.append(body)
         event.set()
 
-    timeline_key = broker.config.broker_config.timeline_key
+    timeline_key = broker.config.broker_config.store.timeline_key
     topic_timeline_key = f"{timeline_key}:topic"
     # Insert a ghost timer ID into the topic's sorted set only — no payload in the hash
     await redis_client.zadd(topic_timeline_key, {"ghost-id": time.time() - 1})

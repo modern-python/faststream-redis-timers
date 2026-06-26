@@ -26,6 +26,14 @@ class TimerStore:
         self._timeline_key = timeline_key
         self._payloads_key = payloads_key
 
+    @property
+    def timeline_key(self) -> str:
+        return self._timeline_key
+
+    @property
+    def payloads_key(self) -> str:
+        return self._payloads_key
+
     def _keys(self, full_topic: str) -> tuple[str, str]:
         """Return (timeline_key, payloads_key) for the given topic."""
         return f"{self._timeline_key}:{full_topic}", f"{self._payloads_key}:{full_topic}"

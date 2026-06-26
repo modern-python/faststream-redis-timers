@@ -18,7 +18,7 @@ async def test_handler_success_removes_timer(broker: TimersBroker, redis_client:
     async def handler(body: str) -> None:
         seen.append(body)
         # While in-handler, the timer is leased (still in zset with future score)
-        timeline_key = f"{broker.config.broker_config.timeline_key}:topic"
+        timeline_key = f"{broker.config.broker_config.store.timeline_key}:topic"
         score = await redis_client.zscore(timeline_key, "the-id")
         assert score is not None
         assert score > time.time(), "lease should push score into the future"
@@ -30,8 +30,8 @@ async def test_handler_success_removes_timer(broker: TimersBroker, redis_client:
         await asyncio.sleep(0.2)  # allow ack to land
 
     assert seen == ["hi"]
-    timeline_key = f"{broker.config.broker_config.timeline_key}:topic"
-    payloads_key = f"{broker.config.broker_config.payloads_key}:topic"
+    timeline_key = f"{broker.config.broker_config.store.timeline_key}:topic"
+    payloads_key = f"{broker.config.broker_config.store.payloads_key}:topic"
     assert await redis_client.zscore(timeline_key, "the-id") is None
     assert await redis_client.hget(payloads_key, "the-id") is None
 
@@ -123,7 +123,7 @@ async def test_explicit_reject_drops_timer(broker: TimersBroker, redis_client: R
         await asyncio.sleep(0.3)  # allow reject() to commit
 
     assert seen == ["drop-me"]
-    timeline_key = f"{broker.config.broker_config.timeline_key}:topic"
+    timeline_key = f"{broker.config.broker_config.store.timeline_key}:topic"
     assert await redis_client.zscore(timeline_key, "reject-id") is None
 
 

@@ -38,8 +38,6 @@ class ConnectionState:
 @dataclass(kw_only=True)
 class TimersBrokerConfig(BrokerConfig):
     connection: ConnectionState
-    timeline_key: str = "timers_timeline"
-    payloads_key: str = "timers_payloads"
     start_timeout: float = 3.0
     store: TimerStore
 

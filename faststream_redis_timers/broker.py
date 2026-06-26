@@ -118,8 +118,6 @@ class TimersBroker(
         store = TimerStore(connection, timeline_key, payloads_key)
         broker_config = TimersBrokerConfig(
             connection=connection,
-            timeline_key=timeline_key,
-            payloads_key=payloads_key,
             start_timeout=start_timeout,
             store=store,
             broker_middlewares=middlewares,
@@ -216,9 +214,8 @@ class TimersBroker(
     async def has_pending(self, topic: str, timer_id: str) -> bool:
         """Return True if a timer with this ID is still pending on *topic*."""
         _require_topic(topic)
-        client = self.config.broker_config.connection.client
-        score = await client.zscore(self._topic_timeline_key(topic), timer_id)
-        return score is not None
+        full_topic = f"{self.config.broker_config.prefix}{topic}"
+        return await self.config.broker_config.store.is_pending(full_topic, timer_id)
 
     async def get_pending_timers(self, topic: str, before: datetime | None = None) -> list[str]:
         """Return pending timer IDs on *topic*. If *before* is given, restrict to timers due by then.
@@ -228,12 +225,10 @@ class TimersBroker(
         once *before* is set to the current time.
         """
         _require_topic(topic)
-        client = self.config.broker_config.connection.client
-        score_max: str | float = before.timestamp() if before is not None else "+inf"
-        raw_ids: list[bytes] | list[str] = await client.zrangebyscore(
-            self._topic_timeline_key(topic), "-inf", score_max
+        full_topic = f"{self.config.broker_config.prefix}{topic}"
+        return await self.config.broker_config.store.pending(
+            full_topic, before.timestamp() if before is not None else None
         )
-        return [r.decode() if isinstance(r, bytes) else r for r in raw_ids]
 
     async def cancel_all(self, topic: str) -> int:
         """Cancel every pending timer on *topic*. Returns the number removed.
@@ -242,23 +237,8 @@ class TimersBroker(
         their final commit is a no-op because the keys are gone.
         """
         _require_topic(topic)
-        client = self.config.broker_config.connection.client
-        timeline_key = self._topic_timeline_key(topic)
-        payloads_key = self._topic_payloads_key(topic)
-        async with client.pipeline(transaction=True) as pipe:
-            pipe.zcard(timeline_key)
-            pipe.unlink(timeline_key)
-            pipe.unlink(payloads_key)
-            results = await pipe.execute()
-        return int(results[0])
-
-    def _topic_timeline_key(self, topic: str) -> str:
         full_topic = f"{self.config.broker_config.prefix}{topic}"
-        return f"{self.config.broker_config.timeline_key}:{full_topic}"
-
-    def _topic_payloads_key(self, topic: str) -> str:
-        full_topic = f"{self.config.broker_config.prefix}{topic}"
-        return f"{self.config.broker_config.payloads_key}:{full_topic}"
+        return await self.config.broker_config.store.cancel_all(full_topic)
 
     async def request(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
         msg = "TimersBroker does not support request-reply"
