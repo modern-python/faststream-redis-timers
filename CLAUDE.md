@@ -9,7 +9,7 @@ source of truth for recipes — run `just --list` or read it. The non-obvious bi
 
 - `just test [args]` — full suite in docker compose (spins up Redis). Args
   forward to pytest. `tests/test_unit.py` + `tests/test_fake.py` need no Redis;
-  the `test_delivery` / `test_cancel` / `test_isolation` integration suites do.
+  the rest (the integration suites) do.
 - `just lint` / `just lint-ci` — autofix vs non-mutating; `lint-ci` also runs the
   planning-bundle validator (`planning/index.py --check`).
 
@@ -32,11 +32,3 @@ copy-and-fill starting points.
 `architecture/<capability>.md` in the same PR** — that promotion keeps
 `architecture/` true. Capability pages are authored over time; see
 [`architecture/README.md`](architecture/README.md).
-
-## Tests
-
-- `tests/test_unit.py` — pure unit tests (no Redis required)
-- `tests/test_fake.py` — `TestTimersBroker` fake-broker tests (no Redis required)
-- `tests/test_delivery.py` — timer delivery integration tests (requires Redis)
-- `tests/test_cancel.py` — cancel/future-timer integration tests (requires Redis)
-- `tests/test_isolation.py` — topic isolation and multi-broker integration tests (requires Redis)
