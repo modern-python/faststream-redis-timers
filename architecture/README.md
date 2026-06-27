@@ -25,6 +25,9 @@ system's behavior is documented.
 - [`fake-broker.md`](fake-broker.md) — `TestTimersBroker`: the no-Redis test
   double, its immediate-delivery contract, `scheduled_timers`, and the boundary
   vs the real lease semantics.
+- [`wire-format.md`](wire-format.md) — the `BinaryMessageFormatV1` envelope around
+  a timer's payload, the encode-once/decode-on-deliver round trip, and the legacy
+  v0.x read fallback.
 
 ## Promotion rule
 
