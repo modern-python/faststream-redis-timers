@@ -22,6 +22,9 @@ system's behavior is documented.
 - [`delivery.md`](delivery.md) — how a scheduled timer reaches a handler (poll →
   claim → consume) and the lease-based at-least-once guarantee (ack/reject
   remove; nack/crash redeliver after the lease expires).
+- [`fake-broker.md`](fake-broker.md) — `TestTimersBroker`: the no-Redis test
+  double, its immediate-delivery contract, `scheduled_timers`, and the boundary
+  vs the real lease semantics.
 
 ## Promotion rule
 
