@@ -45,7 +45,7 @@ jobs:
       - run: uv python install ${{ matrix.python-version }}
       - run: |
           uv sync --all-extras --no-install-project
-          uv run --no-sync pytest . --cov=. --cov-report xml -vvv
+          uv run --no-sync pytest . --cov=. --cov-report xml
         env:
           PYTHONDONTWRITEBYTECODE: 1
           PYTHONUNBUFFERED: 1
