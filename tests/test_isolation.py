@@ -114,6 +114,31 @@ async def test_broker_start_timeout_zero_raises(redis_client: Redis) -> None:
         await broker.__aenter__()
 
 
+async def test_failed_start_does_not_orphan_consume_task(redis_client: Redis) -> None:
+    """A start() that times out must cancel the polling task it spawned, not leak it.
+
+    Regression for a hang where the orphaned ``_consume`` task kept a Redis
+    connection alive and deadlocked fixture/event-loop teardown on slow runners.
+    """
+    suffix = uuid.uuid4().hex
+    broker = TimersBroker(
+        redis_client,
+        timeline_key=f"leak_tl_{suffix}",
+        payloads_key=f"leak_pl_{suffix}",
+        start_timeout=0.0,
+    )
+
+    @broker.subscriber("topic")
+    async def handler(body: str) -> None: ...
+
+    tasks_before = set(asyncio.all_tasks())
+    with pytest.raises(TimeoutError):
+        await broker.__aenter__()
+
+    leaked = [task for task in asyncio.all_tasks() - tasks_before if not task.done()]
+    assert leaked == [], f"failed start orphaned tasks: {[task.get_coro() for task in leaked]}"
+
+
 async def test_two_brokers_same_keys_deliver_once(redis_client: Redis) -> None:
     """Two broker instances sharing keys process each timer exactly once."""
     suffix = uuid.uuid4().hex

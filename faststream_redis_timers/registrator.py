@@ -1,10 +1,11 @@
 import warnings
 from collections.abc import Iterable
-from typing import Any, override
+from typing import Any
 
 from fast_depends.dependencies import Dependant
 from faststream._internal.broker.registrator import Registrator
 from faststream._internal.types import CustomCallable
+from typing_extensions import override
 
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.publisher.factory import create_publisher

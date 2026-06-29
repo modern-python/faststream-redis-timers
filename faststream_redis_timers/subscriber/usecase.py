@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 import typing
@@ -9,6 +10,7 @@ from faststream._internal.endpoint.subscriber import SubscriberSpecification, Su
 from faststream._internal.endpoint.subscriber.mixins import TasksMixin
 from faststream.specification.asyncapi.utils import resolve_payloads
 from faststream.specification.schema import Message, Operation, SubscriberSpec
+from typing_extensions import override
 
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.parser.parser import TimerParser
@@ -66,16 +68,25 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
     def _client(self) -> "RedisClient":
         return self._outer_config.connection.client
 
-    @typing.override
+    @override
     async def start(self) -> None:
         await super().start()
         self._post_start()
 
         start_signal = anyio.Event()
         if self.calls:
-            self.add_task(self._consume, (self._client,), {"start_signal": start_signal})
-            with anyio.fail_after(self._outer_config.start_timeout):
-                await start_signal.wait()
+            consume_task = self.add_task(self._consume, (self._client,), {"start_signal": start_signal})
+            try:
+                with anyio.fail_after(self._outer_config.start_timeout):
+                    await start_signal.wait()
+            except TimeoutError:
+                # Start timed out: cancel the spawned poll task and await its
+                # completion so a failed start leaves no orphaned task holding a
+                # Redis connection (which otherwise deadlocks teardown).
+                await self.stop()
+                with suppress(asyncio.CancelledError):
+                    await consume_task
+                raise
         else:
             start_signal.set()
 
@@ -161,12 +172,12 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
                 exc_info=e,
             )
 
-    @typing.override
+    @override
     async def stop(self) -> None:
         with anyio.move_on_after(self._outer_config.graceful_timeout):
             await super().stop()
 
-    @typing.override
+    @override
     async def get_one(self, *, timeout: float = 5.0) -> typing.NoReturn:
         msg = "TimersBroker does not support get_one()"
         raise NotImplementedError(msg)
