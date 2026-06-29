@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 import typing
@@ -74,9 +75,18 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
 
         start_signal = anyio.Event()
         if self.calls:
-            self.add_task(self._consume, (self._client,), {"start_signal": start_signal})
-            with anyio.fail_after(self._outer_config.start_timeout):
-                await start_signal.wait()
+            consume_task = self.add_task(self._consume, (self._client,), {"start_signal": start_signal})
+            try:
+                with anyio.fail_after(self._outer_config.start_timeout):
+                    await start_signal.wait()
+            except TimeoutError:
+                # Start timed out: cancel the spawned poll task and await its
+                # completion so a failed start leaves no orphaned task holding a
+                # Redis connection (which otherwise deadlocks teardown).
+                await self.stop()
+                with suppress(asyncio.CancelledError):
+                    await consume_task
+                raise
         else:
             start_signal.set()
 
