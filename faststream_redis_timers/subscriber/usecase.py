@@ -9,6 +9,7 @@ from faststream._internal.endpoint.subscriber import SubscriberSpecification, Su
 from faststream._internal.endpoint.subscriber.mixins import TasksMixin
 from faststream.specification.asyncapi.utils import resolve_payloads
 from faststream.specification.schema import Message, Operation, SubscriberSpec
+from typing_extensions import override
 
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.parser.parser import TimerParser
@@ -66,7 +67,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
     def _client(self) -> "RedisClient":
         return self._outer_config.connection.client
 
-    @typing.override
+    @override
     async def start(self) -> None:
         await super().start()
         self._post_start()
@@ -161,12 +162,12 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
                 exc_info=e,
             )
 
-    @typing.override
+    @override
     async def stop(self) -> None:
         with anyio.move_on_after(self._outer_config.graceful_timeout):
             await super().stop()
 
-    @typing.override
+    @override
     async def get_one(self, *, timeout: float = 5.0) -> typing.NoReturn:
         msg = "TimersBroker does not support get_one()"
         raise NotImplementedError(msg)

@@ -1,5 +1,6 @@
 import typing
 from dataclasses import dataclass
+from typing import TypeAlias
 
 from faststream._internal.configs import BrokerConfig
 from faststream.exceptions import IncorrectState
@@ -14,7 +15,7 @@ if typing.TYPE_CHECKING:
 # Accepts a client created with either default (bytes) or ``decode_responses=True`` (str).
 # The CLAIM Lua reply is forced through ``NEVER_DECODE`` so the binary envelope stays
 # intact regardless of which mode the user picked.
-type RedisClient = "Redis[bytes] | Redis[str]"
+RedisClient: TypeAlias = "Redis[bytes] | Redis[str]"
 
 
 class ConnectionState:

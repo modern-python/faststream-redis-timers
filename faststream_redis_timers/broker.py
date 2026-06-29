@@ -19,6 +19,7 @@ from faststream.response.publish_type import PublishType
 from faststream.specification.schema import BrokerSpec
 from faststream.specification.schema.extra import Tag, TagDict
 from redis.asyncio.cluster import RedisCluster
+from typing_extensions import override
 
 from faststream_redis_timers.configs import ConnectionState, RedisClient, TimersBrokerConfig
 from faststream_redis_timers.message import TimerMessage
@@ -147,21 +148,21 @@ class TimersBroker(
         )
         super().__init__(config=broker_config, specification=specification, routers=routers)  # ty: ignore[unknown-argument]
 
-    @typing.override
+    @override
     async def _connect(self) -> "RedisClient":
         return self.config.broker_config.connection.client
 
-    @typing.override
+    @override
     async def __aenter__(self) -> typing.Self:
         await self.start()
         return self
 
-    @typing.override
+    @override
     async def start(self) -> None:
         await self.connect()
         await super().start()
 
-    @typing.override
+    @override
     async def ping(self, timeout: float | None = None) -> bool:
         try:
             client = self.config.broker_config.connection.client
