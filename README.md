@@ -2,7 +2,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/faststream-redis-timers.svg)](https://pypi.org/project/faststream-redis-timers/)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/faststream-redis-timers.svg)](https://pypi.org/project/faststream-redis-timers/)
-[![Downloads](https://img.shields.io/pypi/dm/faststream-redis-timers.svg)](https://pypistats.org/packages/faststream-redis-timers)
+[![Downloads](https://static.pepy.tech/badge/faststream-redis-timers/month)](https://pepy.tech/projects/faststream-redis-timers)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/modern-python/faststream-redis-timers/actions/workflows/ci.yml)
 [![CI](https://github.com/modern-python/faststream-redis-timers/actions/workflows/ci.yml/badge.svg)](https://github.com/modern-python/faststream-redis-timers/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/modern-python/faststream-redis-timers.svg)](https://github.com/modern-python/faststream-redis-timers/blob/main/LICENSE)
