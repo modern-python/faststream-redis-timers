@@ -12,6 +12,11 @@ source of truth for recipes — run `just --list` or read it. The non-obvious bi
   the rest (the integration suites) do.
 - `just lint` / `just lint-ci` — autofix vs non-mutating; `lint-ci` also runs the
   planning-bundle validator (`planning/index.py --check`).
+- Verifying a Python-version / interpreter-compat change: run the **full** suite
+  on the target interpreter (the CI matrix, or `just test` in docker), not just
+  the no-Redis subset. An integration-only failure — e.g. a broker-shutdown hang
+  that only bites under a specific interpreter's async timing — won't surface in
+  `test_unit.py` / `test_fake.py` alone.
 
 ## Workflow
 
