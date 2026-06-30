@@ -1,4 +1,10 @@
-# faststream-redis-timers
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)"  srcset="https://raw.githubusercontent.com/modern-python/.github/main/brand/projects/faststream-redis-timers/lockup-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/modern-python/.github/main/brand/projects/faststream-redis-timers/lockup-light.svg">
+    <img alt="faststream-redis-timers" src="https://raw.githubusercontent.com/modern-python/.github/main/brand/projects/faststream-redis-timers/lockup.png" width="420">
+  </picture>
+</p>
 
 [![PyPI version](https://img.shields.io/pypi/v/faststream-redis-timers.svg)](https://pypi.org/project/faststream-redis-timers/)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/faststream-redis-timers.svg)](https://pypi.org/project/faststream-redis-timers/)
