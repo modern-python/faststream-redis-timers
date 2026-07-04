@@ -1,6 +1,11 @@
-# faststream-redis-timers
+<div class="mp-hero" markdown>
 
-Welcome to the `faststream-redis-timers` documentation!
+<h1 class="mp-lockup">
+<img class="mp-logo mp-logo--light" src="assets/lockup-light.svg" alt="faststream-redis-timers">
+<img class="mp-logo mp-logo--dark" src="assets/lockup-dark.svg" alt="" aria-hidden="true">
+</h1>
+
+</div>
 
 `faststream-redis-timers` is a [FastStream](https://faststream.airt.ai) broker integration for Redis-backed distributed timer scheduling.
 
