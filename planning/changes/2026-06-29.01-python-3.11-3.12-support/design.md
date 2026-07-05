@@ -1,7 +1,8 @@
-# Support Python 3.11 and 3.12
+---
+summary: Lowered the supported-Python floor from 3.13 to 3.11 by backporting the PEP 695 type alias and typing.override via typing_extensions; widened the CI pytest matrix to 3.11/3.12.
+---
 
-**Date:** 2026-06-29
-**Status:** Approved design
+# Support Python 3.11 and 3.12
 
 ## Goal
 

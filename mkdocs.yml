@@ -4,6 +4,7 @@ repo_url: https://github.com/modern-python/faststream-redis-timers
 docs_dir: docs
 edit_uri: edit/main/docs/
 nav:
+  - Overview: index.md
   - Introduction:
       - Installation: introduction/installation.md
       - How it works: introduction/how-it-works.md
@@ -49,6 +50,12 @@ theme:
       toggle:
         icon: material/brightness-4
         name: Switch to system preference
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
 
 markdown_extensions:
   - admonition
