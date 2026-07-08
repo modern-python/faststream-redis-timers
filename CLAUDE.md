@@ -11,7 +11,7 @@ source of truth for recipes — run `just --list` or read it. The non-obvious bi
   forward to pytest. `tests/test_unit.py` + `tests/test_fake.py` need no Redis;
   the rest (the integration suites) do.
 - `just lint` / `just lint-ci` — autofix vs non-mutating; `lint-ci` also runs the
-  planning-bundle validator (`planning/index.py --check`).
+  planning-change validator (`planning/index.py --check`).
 - Verifying a Python-version / interpreter-compat change: run the **full** suite
   on the target interpreter (the CI matrix, or `just test` in docker), not just
   the no-Redis subset. An integration-only failure — e.g. a broker-shutdown hang
@@ -21,14 +21,14 @@ source of truth for recipes — run `just --list` or read it. The non-obvious bi
 ## Workflow
 
 Planning uses a portable convention — `architecture/` (repo root) is the living
-**truth home** and promotion target; `planning/changes/` holds the per-change
-bundles. Start at the
+**truth home** and promotion target; `planning/changes/` holds the flat
+change files. Start at the
 [Quick path](planning/README.md#quick-path-start-here) in
 [`planning/README.md`](planning/README.md) (the authoritative spec) to pick a
-lane — **Full** (`design.md` + `plan.md`), **Lightweight** (single `change.md`),
-or **Tiny** (just a commit) — and ship. `just check-planning` validates bundles;
-`just index` prints the change + decision listing; `planning/_templates/` are
-copy-and-fill starting points.
+lane — **Full** (design template), **Lightweight** (change template),
+or **Tiny** (just a commit) — and ship. `just check-planning` validates
+change files; `just index` prints the change + decision listing;
+`planning/_templates/` are copy-and-fill starting points.
 
 ## Architecture
 
