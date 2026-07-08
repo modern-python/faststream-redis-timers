@@ -34,5 +34,5 @@ system's behavior is documented.
 Shipping a change hand-edits the affected capability file(s) here to match the
 new reality, in the same PR as the code. When a change alters a capability's
 behavior, update the matching `architecture/<capability>.md` in the same PR. The
-change bundle stays in place under
+change file stays in place under
 [`../planning/changes/`](../planning/changes/) — no folder move.
