@@ -29,6 +29,7 @@ Use `broker.publish()` with `activate_in` (relative delay) or `activate_at` (abs
 ```python
 from datetime import UTC, datetime, timedelta
 
+
 @app.after_startup
 async def schedule_reminder() -> None:
     # Relative — fire 24 hours from now
@@ -143,7 +144,8 @@ pending = await broker.get_pending_timers("invoices")
 
 # Only those due in the next hour
 soon = await broker.get_pending_timers(
-    "invoices", before=datetime.now(tz=UTC) + timedelta(hours=1),
+    "invoices",
+    before=datetime.now(tz=UTC) + timedelta(hours=1),
 )
 
 # Wipe a topic's queue (e.g., during a maintenance reset)
