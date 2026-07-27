@@ -73,10 +73,10 @@ Configure polling behaviour per subscriber:
 ```python
 @broker.subscriber(
     "high-priority",
-    polling_interval=0.01,        # poll every 10ms when busy
-    max_polling_interval=0.5,     # never sleep longer than 500ms when idle
-    max_concurrent=20,            # up to 20 handlers may run in parallel
-    lease_ttl=60,                 # hold lease for up to 60 seconds
+    polling_interval=0.01,  # poll every 10ms when busy
+    max_polling_interval=0.5,  # never sleep longer than 500ms when idle
+    max_concurrent=20,  # up to 20 handlers may run in parallel
+    lease_ttl=60,  # hold lease for up to 60 seconds
 )
 async def handle_urgent(body: str) -> None: ...
 ```
@@ -113,7 +113,7 @@ async def handle_invoice(
         process(body)
         await msg.ack()
     except TransientError:
-        await msg.nack()   # retry later
+        await msg.nack()  # retry later
     except PermanentError:
-        await msg.reject() # discard permanently
+        await msg.reject()  # discard permanently
 ```

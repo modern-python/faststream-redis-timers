@@ -72,13 +72,14 @@ from faststream.message import StreamMessage
 
 pub = broker.publisher("orders")
 
+
 @broker.subscriber("orders")
 async def handle(
     body: dict,
     correlation_id: str = Context("message.correlation_id"),
     tenant: str = Context("message.headers.x-tenant"),
-) -> None:
-    ...
+) -> None: ...
+
 
 await pub.publish(
     {"order_id": 42},

@@ -37,9 +37,11 @@ client = Redis.from_url("redis://localhost:6379")
 broker = TimersBroker(client)
 app = FastStream(broker)
 
+
 @broker.subscriber("invoices")
 async def handle_invoice(invoice_id: str) -> None:
     print(f"Invoice {invoice_id} is due!")
+
 
 @app.after_startup
 async def schedule() -> None:
@@ -107,13 +109,13 @@ Inside the handler:
 ```python
 from faststream import Context
 
+
 @broker.subscriber("orders")
 async def handle(
     body: dict,
     correlation_id: str = Context("message.correlation_id"),
     tenant: str = Context("message.headers.x-tenant"),
-) -> None:
-    ...
+) -> None: ...
 ```
 
 ## Connection ownership

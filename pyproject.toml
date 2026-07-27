@@ -65,6 +65,7 @@ ignore = [
     "ISC001", # flake8-implicit-str-concat
     "G004", # Logging statement uses f-string
     "ANN",
+    "CPY001", # no per-file copyright header
 ]
 isort.lines-after-imports = 2
 isort.no-lines-before = ["standard-library", "local-folder"]
