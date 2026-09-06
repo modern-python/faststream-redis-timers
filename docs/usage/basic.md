@@ -148,11 +148,11 @@ soon = await broker.get_pending_timers(
     before=datetime.now(tz=UTC) + timedelta(hours=1),
 )
 
-# Wipe a topic's queue (e.g., during a maintenance reset)
+# Wipe a topic's pending timers (e.g., during a maintenance reset)
 removed = await broker.cancel_all("invoices")
 ```
 
-These methods only inspect/cancel timers in the queue — handlers that have already started running are unaffected.
+These methods only inspect/cancel pending timers on the topic — handlers that have already started running are unaffected.
 
 ### Leased timers still appear as pending
 
@@ -166,7 +166,7 @@ If you are polling `has_pending` to detect *"the timer fired and the handler fin
 
 ### `cancel_all` race with executing handlers
 
-If `cancel_all(topic)` runs while a worker is mid-handler for a leased timer on that topic, the handler runs to completion. When it finishes, its commit (the `ZREM` + `HDEL` that normally removes the timer) becomes a no-op because `cancel_all` has already deleted both keys for the topic. The work is *not* rolled back — only the bookkeeping is skipped — so handlers that have side effects (sent emails, written rows) will have already done them. Use `cancel_all` for queue resets, not for "stop everything in flight."
+If `cancel_all(topic)` runs while a worker is mid-handler for a leased timer on that topic, the handler runs to completion. When it finishes, its commit (the `ZREM` + `HDEL` that normally removes the timer) becomes a no-op because `cancel_all` has already deleted both keys for the topic. The work is *not* rolled back — only the bookkeeping is skipped — so handlers that have side effects (sent emails, written rows) will have already done them. Use `cancel_all` for topic resets, not for "stop everything in flight."
 
 ## Debug logging
 
