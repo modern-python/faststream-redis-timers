@@ -63,8 +63,8 @@ The default ack policy is `NACK_ON_ERROR`: the timer is acknowledged on success,
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `polling_interval` | `0.05` s | Base poll interval used when the queue has work or just transitioned from idle |
-| `max_polling_interval` | `5.0` s | Ceiling for the adaptive idle backoff — `polling_interval` doubles up to this value on consecutive empty polls. Worst-case delivery latency on a previously-idle queue is `max_polling_interval × 1.5` (with ±50% jitter) |
+| `polling_interval` | `0.05` s | Base poll interval used when the topic has due timers or just transitioned from idle |
+| `max_polling_interval` | `5.0` s | Ceiling for the adaptive idle backoff — `polling_interval` doubles up to this value on consecutive empty polls. Worst-case delivery latency on a previously-idle topic is `max_polling_interval × 1.5` (with ±50% jitter) |
 | `max_concurrent` | `5` | Max handlers running concurrently per subscriber; also bounds fetch batch size |
 | `lease_ttl` | `30` s | How long a worker holds the lease before another worker may re-claim. Set to ~3–5× the P99 handler runtime: lower values speed up recovery from worker death, higher values tolerate handler GC pauses and clock skew |
 
