@@ -4,7 +4,7 @@ FastStream broker integration for Redis-backed distributed timer scheduling.
 
 ## Commands
 
-`just` (task runner) + `uv` (package manager); the [`Justfile`](Justfile) is the
+`just` (task runner) + `uv` (package manager); the [`justfile`](justfile) is the
 source of truth for recipes — run `just --list` or read it. The non-obvious bits:
 
 - `just test [args]` — full suite in docker compose (spins up Redis). Args
