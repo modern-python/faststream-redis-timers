@@ -34,6 +34,7 @@ jobs:
           - "3.12"
           - "3.13"
           - "3.14"
+          - "3.14t"
     services:
       redis:
         image: redis:8
@@ -54,9 +55,11 @@ jobs:
           cache-dependency-glob: "**/pyproject.toml"
       - run: uv python install ${{ matrix.python-version }}
       - run: uv python pin ${{ matrix.python-version }}
-      - run: |
-          uv sync --all-extras --no-install-project
-          just test-ci
+      - run: uv sync --all-extras --no-install-project
+      - name: Confirm the interpreter is free-threaded
+        if: matrix.python-version == '3.14t'
+        run: uv run --no-sync python -c "import sys, faststream_redis_timers; assert not sys._is_gil_enabled(), 'GIL is enabled on a t-build'"
+      - run: just test-ci
         env:
           PYTHONDONTWRITEBYTECODE: 1
           PYTHONUNBUFFERED: 1
