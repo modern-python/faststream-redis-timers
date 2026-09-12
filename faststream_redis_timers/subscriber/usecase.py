@@ -192,7 +192,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         self,
         message: "StreamMessage[TimerMessage] | None",
     ) -> dict[str, str]:
-        if message and message.raw_message:
+        if message:
             return {
                 "channel": message.raw_message.get("channel", ""),
                 "message_id": getattr(message, "message_id", ""),
