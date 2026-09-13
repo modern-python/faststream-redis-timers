@@ -6,10 +6,9 @@ a concept in code, a test name, or an issue title.
 
 ## Commands
 
-`just` (task runner) + `uv` (package manager); the [`justfile`](justfile) is the source of truth
-for recipes — run `just --list` or read it. The things it does not say:
+`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth —
+`just --list`, or read it. The things it does not say:
 
-- A `ty` suppression is written `# ty: ignore`, never `# type: ignore`.
 - `tests/test_unit.py`, `tests/test_fake.py`, `tests/test_store_seam.py` and
   `tests/test_tuning_defaults.py` need no Redis; the rest (the integration suites) do.
 - Verifying a Python-version / interpreter-compat change: run the **full** suite on the target
@@ -19,11 +18,6 @@ for recipes — run `just --list` or read it. The things it does not say:
 
 ## Workflow
 
-Real work **not scheduled** becomes a GitHub issue.
-
 Every link in `README.md` must be absolute: `https://github.com/modern-python/<repo>/blob/main/<path>`,
 or `.../tree/main/<path>` for a directory. Never a relative path: `README.md` is also the PyPI long
 description, and PyPI does not rewrite relative links, so a relative one 404s on the package page.
-
-An invariant is a test whose name is the claim, with a docstring opening `INVARIANT:` and a second
-paragraph naming **what breaks it** — design rationale, not a report of what this one test catches.
