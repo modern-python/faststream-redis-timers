@@ -93,6 +93,6 @@ class TimersRouter(TimersRegistrator, BrokerRouter[TimerMessage, BrokerConfig]):
                 include_in_schema=include_in_schema,
                 prefix=prefix,
             ),
-            handlers=handlers,  # ty: ignore[unknown-argument]
+            handlers=handlers,
             routers=routers,
         )

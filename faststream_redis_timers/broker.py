@@ -146,7 +146,7 @@ class TimersBroker(
             tags=tags,
             security=None,
         )
-        super().__init__(config=broker_config, specification=specification, routers=routers)  # ty: ignore[unknown-argument]
+        super().__init__(config=broker_config, specification=specification, routers=routers)
 
     @override
     async def _connect(self) -> "RedisClient":
