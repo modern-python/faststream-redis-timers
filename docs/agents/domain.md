@@ -18,7 +18,7 @@ Single-context repo:
 ├── CONTEXT.md
 ├── docs/adr/
 │   ├── 0001-fake-broker-keeps-immediate-delivery.md
-│   └── 0002-keep-construction-factories.md
+│   └── 0002-no-per-call-middlewares-kwarg.md
 └── faststream_redis_timers/
 ```
 
@@ -32,4 +32,5 @@ If the concept you need isn't in the glossary yet, that's a signal: either you'r
 
 If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
 
-> _Contradicts ADR-0001 (fake broker keeps immediate delivery), but worth reopening because…_
+> _Contradicts ADR-0001 (the fake broker delivers every Timer immediately), but worth reopening
+> because…_
