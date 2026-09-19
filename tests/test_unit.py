@@ -143,7 +143,7 @@ def test_params_storage_register_subscriber_widens_the_channel_column() -> None:
     storage.get_logger(context=MagicMock())
     formatter = logging.getLogger("faststream.access.timers").handlers[0].formatter
     assert formatter is not None
-    assert "%(channel)-17s" in formatter._fmt  # noqa: SLF001
+    assert "%(channel)-17s" in (formatter._fmt or "")  # noqa: SLF001
 
 
 # --- Subscriber.get_one raises ---
