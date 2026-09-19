@@ -1,6 +1,6 @@
 # faststream-redis-timers
 
-A [FastStream](https://faststream.airt.ai) broker integration for Redis-backed distributed timer
+A [FastStream](https://faststream.ag2.ai) broker integration for Redis-backed distributed timer
 scheduling: publish a message now, have it delivered to a subscriber at a future instant, with
 at-least-once delivery across a fleet of workers sharing one Redis.
 
