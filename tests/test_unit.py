@@ -136,6 +136,16 @@ def test_params_storage_get_logger_is_cached() -> None:
     assert logger1 is logger2
 
 
+def test_params_storage_register_subscriber_widens_the_channel_column() -> None:
+    logging.getLogger("faststream.access.timers").handlers.clear()
+    storage = TimersParamsStorage()
+    storage.register_subscriber({"channel": "billing-reminders"})
+    storage.get_logger(context=MagicMock())
+    formatter = logging.getLogger("faststream.access.timers").handlers[0].formatter
+    assert formatter is not None
+    assert "%(channel)-17s" in formatter._fmt  # noqa: SLF001
+
+
 # --- Subscriber.get_one raises ---
 
 
@@ -144,6 +154,14 @@ async def test_subscriber_get_one_raises() -> None:
     sub = broker.subscriber("topic")
     with pytest.raises(NotImplementedError):
         await sub.get_one()
+
+
+async def test_subscriber_iteration_raises() -> None:
+    broker = TimersBroker()
+    sub = broker.subscriber("topic")
+    with pytest.raises(NotImplementedError):
+        async for _ in sub:  # pragma: no cover - never yields
+            pass
 
 
 # --- Publisher.request raises ---

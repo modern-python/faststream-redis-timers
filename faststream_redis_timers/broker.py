@@ -45,6 +45,9 @@ class TimersParamsStorage(DefaultLoggerStorage):
     __max_msg_id_ln = -1
     _max_channel_name = 7
 
+    def register_subscriber(self, params: dict[str, typing.Any]) -> None:
+        self._max_channel_name = max(self._max_channel_name, len(params.get("channel", "")))
+
     def get_logger(self, *, context: "ContextRepo") -> LoggerProto:
         if logger := self._get_logger_ref():
             return logger
