@@ -182,6 +182,11 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         msg = "TimersBroker does not support get_one()"
         raise NotImplementedError(msg)
 
+    @override
+    def __aiter__(self) -> typing.NoReturn:
+        msg = "TimersBroker does not support iteration"
+        raise NotImplementedError(msg)
+
     def _make_response_publisher(
         self,
         message: "StreamMessage[TimerMessage]",  # noqa: ARG002
