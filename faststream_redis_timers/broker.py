@@ -19,6 +19,7 @@ from faststream.response.publish_type import PublishType
 from faststream.specification.schema import BrokerSpec
 from faststream.specification.schema.extra import Tag, TagDict
 from redis.asyncio.cluster import RedisCluster
+from redis.asyncio.connection import SSLConnection
 from typing_extensions import override
 
 from faststream_redis_timers.configs import ConnectionState, RedisClient, TimersBrokerConfig
@@ -39,6 +40,29 @@ def _require_topic(topic: str) -> None:
     if not topic:
         msg = "topic must be a non-empty string"
         raise ValueError(msg)
+
+
+def _spec_url(client: "RedisClient | None", timeline_key: str) -> list[str]:
+    """AsyncAPI server URL(s) for the broker spec.
+
+    **Must be non-empty.** Upstream collects channels only for brokers that reach its
+    ``broker_servers`` mapping, which it fills inside ``for url in specification.url``;
+    an empty list renders a document with no servers, channels or operations while every
+    per-endpoint ``get_schema()`` stays correct. Rebuilt from the pool's connection
+    parameters rather than the caller's DSN, so no credential can reach the document.
+    """
+    if client is None:
+        return [f"redis://timers/{timeline_key}"]
+
+    connection_kwargs = client.connection_pool.connection_kwargs
+    if socket_path := connection_kwargs.get("path"):
+        return [f"unix://{socket_path}"]
+
+    scheme = "rediss" if issubclass(client.connection_pool.connection_class, SSLConnection) else "redis"
+    host = connection_kwargs.get("host", "localhost")
+    port = connection_kwargs.get("port", 6379)
+    db = connection_kwargs.get("db", 0)
+    return [f"{scheme}://{host}:{port}/{db}"]
 
 
 class TimersParamsStorage(DefaultLoggerStorage):
@@ -97,7 +121,7 @@ class TimersBroker(
         start_timeout: float = 3.0,
         decoder: CustomCallable | None = None,
         parser: CustomCallable | None = None,
-        dependencies: Iterable[Dependant] = (),
+        dependencies: Sequence[Dependant] = (),
         middlewares: Sequence[type[BaseMiddleware] | BrokerMiddleware[TimerMessage]] = (),
         graceful_timeout: float | None = 15.0,
         routers: Sequence[Registrator[TimerMessage]] = (),
@@ -142,7 +166,7 @@ class TimersBroker(
             ),
         )
         specification = BrokerSpec(
-            url=[],
+            url=_spec_url(client, timeline_key),
             protocol="redis",
             protocol_version="5.0",
             description=description,

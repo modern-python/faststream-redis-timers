@@ -24,8 +24,9 @@ The named channel a Timer is Scheduled on and that a subscriber consumes from. T
 derived per Topic; a Timer only ever exists on one.
 _Avoid_: queue — a Topic is not a work queue, and the difference matters: Timers on a Topic are
 ordered by Activation time, not arrival, and a Claimed Timer stays on the Topic rather than leaving
-it. `channel` survives only where FastStream owns the spelling: the `raw_message` field and the
-log-context key. In our own prose it is Topic.
+it. `channel` survives only where FastStream owns the spelling: the `raw_message` field, the
+log-context key, and `channel_labels` with the AsyncAPI document it feeds, where a Topic is a
+channel — say *AsyncAPI channel* there. In our own prose it is Topic.
 
 **Activation time**:
 The single absolute UTC instant at which a Timer becomes Due. Exactly one of `activate_in` (a

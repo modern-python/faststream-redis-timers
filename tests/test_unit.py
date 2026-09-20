@@ -6,10 +6,12 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anyio
-import faststream.asgi.factories.asyncapi.try_it_out
 import pytest
 from faststream._internal.parser import DefaultCodec
+from faststream._internal.testing.broker import find_test_broker
 from faststream.exceptions import IncorrectState
+from faststream.specification import AsyncAPI
+from redis.asyncio import Redis
 from redis.asyncio.cluster import RedisCluster
 from redis.exceptions import NoScriptError
 
@@ -31,9 +33,15 @@ from faststream_redis_timers.subscriber.schedule import (
 # --- AsyncAPI try_it_out registry ---
 
 
-def test_timers_broker_registered_in_try_it_out_registry() -> None:
-    registry = faststream.asgi.factories.asyncapi.try_it_out._get_broker_registry()  # noqa: SLF001
-    assert registry[TimersBroker] is TestTimersBroker
+def test_timers_broker_registered_in_test_broker_registry() -> None:
+    """INVARIANT: a `TimersBroker` resolves to `TestTimersBroker` through FastStream's own registry.
+
+    The AsyncAPI "try it out" page looks the test broker up by broker class, so a `TimersBroker`
+    that is absent from the registry silently loses that page. Registration is declarative — the
+    `broker=` argument on the class statement — so deleting it breaks this with nothing else to
+    notice, and a registry populated by hand goes stale against whatever FastStream does next.
+    """
+    assert find_test_broker(TimersBroker()) is TestTimersBroker
 
 
 # --- ConnectionState ---
@@ -174,30 +182,111 @@ async def test_publisher_request_raises() -> None:
         await pub.request("x")
 
 
+# --- AsyncAPI document assembly ---
+
+
+async def test_asyncapi_document_carries_the_declared_channels() -> None:
+    """INVARIANT: a broker's endpoints reach the assembled AsyncAPI document, not just `get_schema()`.
+
+    Upstream collects channels only for brokers that reach `broker_servers`, and it fills that
+    mapping inside `for url in specification.url`. A broker whose spec carries an empty `url` is
+    therefore skipped outright and renders a structurally blank document — no servers, channels or
+    operations — while every per-endpoint `get_schema()` stays correct, so specification-level tests
+    cannot see it. Emptying `BrokerSpec.url` breaks this again, silently.
+    """
+    broker = TimersBroker(Redis.from_url("redis://cache.example:6399/3"))
+    sub = broker.subscriber("reminders")
+
+    @sub
+    async def handle(body: str) -> None: ...
+
+    broker.publisher("reminders")
+
+    async with TestTimersBroker(broker):
+        spec = AsyncAPI(broker).to_specification().to_jsonable()
+
+    assert sorted(spec["channels"]) == ["reminders:Handle", "reminders:Publisher"]
+    assert [server["host"] for server in spec["servers"].values()] == ["cache.example:6399"]
+
+
+def test_specification_url_carries_no_credentials() -> None:
+    """INVARIANT: the AsyncAPI server URL is rebuilt from connection parameters, never the DSN.
+
+    The document is published — FastStream serves it from the ASGI app — so a URL echoed back from
+    `Redis.from_url("redis://user:secret@...")` would publish the password. Reading the pool's
+    `username`/`password` into the URL, or passing the caller's DSN through, breaks it.
+    """
+    broker = TimersBroker(Redis.from_url("redis://user:secret@cache.example:6399/3"))
+
+    assert broker.specification.url == ["redis://cache.example:6399/3"]
+
+
+@pytest.mark.parametrize(
+    ("client", "expected"),
+    [
+        (None, "redis://timers/tl"),
+        (Redis.from_url("unix:///tmp/redis.sock?db=2"), "unix:///tmp/redis.sock"),
+        (Redis.from_url("rediss://cache.example:6379/0"), "rediss://cache.example:6379/0"),
+    ],
+    ids=["no-client", "unix-socket", "tls"],
+)
+def test_specification_url_shapes(client: Redis | None, expected: str) -> None:
+    assert TimersBroker(client, timeline_key="tl").specification.url == [expected]
+
+
 # --- TimersSubscriberSpecification.name / get_schema ---
 
 
-def test_subscriber_specification_name_and_schema() -> None:
+async def test_subscriber_specification_addresses_the_channel_by_its_full_topic() -> None:
+    """INVARIANT: the channel a subscriber emits is addressed by the topic it actually polls.
+
+    The channel key carries the handler name with it, so it names nothing subscribable on its own;
+    `address` is the only field a reader can act on. Dropping the prefix breaks it just as surely
+    as omitting the field: a broker-prefixed deployment would publish an address no timer lands on.
+    """
     broker = TimersBroker()
-    sub = broker.subscriber("my-topic")
-    spec = sub.specification
-    name = spec.name
-    assert "my-topic" in name
-    schema = spec.get_schema()
-    assert schema  # non-empty dict
+    router = TimersRouter(prefix="app:")
+    sub = router.subscriber("my-topic")
+
+    @sub
+    async def handle(body: str) -> None: ...
+
+    broker.include_router(router)
+    async with TestTimersBroker(broker):
+        schema = sub.specification.get_schema()
+
+    assert {key: spec.address for key, spec in schema.items()} == {"app:my-topic:Handle": "app:my-topic"}
+
+
+async def test_subscriber_title_names_the_channel_not_only_the_operation() -> None:
+    """`title_` names the channel, matching the publisher and every built-in broker."""
+    broker = TimersBroker()
+    sub = broker.subscriber("my-topic", title_="TimerIngest")
+
+    @sub
+    async def handle(body: str) -> None: ...
+
+    async with TestTimersBroker(broker):
+        assert list(sub.specification.get_schema()) == ["TimerIngest"]
 
 
 # --- TimersPublisherSpecification.name / get_schema ---
 
 
-def test_publisher_specification_name_and_schema() -> None:
+def test_publisher_specification_addresses_the_channel_by_its_full_topic() -> None:
+    """INVARIANT: the channel a publisher emits is addressed by the topic it actually writes to.
+
+    Same reason as the subscriber: the key is `topic:Publisher`, which no client can publish to,
+    and an address that drops the broker prefix points at a topic nothing reads.
+    """
     broker = TimersBroker()
-    pub = broker.publisher("my-topic")
-    spec = pub.specification
-    name = spec.name
-    assert "my-topic" in name
-    schema = spec.get_schema()
-    assert schema  # non-empty dict
+    router = TimersRouter(prefix="app:")
+    pub = router.publisher("my-topic")
+
+    broker.include_router(router)
+    schema = pub.specification.get_schema()
+
+    assert {key: spec.address for key, spec in schema.items()} == {"app:my-topic:Publisher": "app:my-topic"}
 
 
 # --- TimerStreamMessage.nack ---
