@@ -29,13 +29,18 @@ if typing.TYPE_CHECKING:
 
 class TimersSubscriberSpecification(SubscriberSpecification["TimersBrokerConfig", TimersSubscriberSpecificationConfig]):
     @property
-    def name(self) -> str:
+    def full_topic(self) -> str:
         prefix = getattr(self._outer_config, "prefix", "")
-        return f"{prefix}{self.config.topic}:{self.call_name}"
+        return f"{prefix}{self.config.topic}"
+
+    @property
+    def channel_labels(self) -> list[str]:
+        return [self.full_topic]
 
     def get_schema(self) -> dict[str, SubscriberSpec]:
         return {
             self.name: SubscriberSpec(
+                address=self.full_topic,
                 description=self.description,
                 operation=Operation(
                     message=Message(
@@ -75,7 +80,8 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
 
         start_signal = anyio.Event()
         if self.calls:
-            consume_task = self.add_task(self._consume, (self._client,), {"start_signal": start_signal})
+            self.add_task(self._consume, (self._client,), {"start_signal": start_signal})
+            consume_task = self.tasks[-1]
             try:
                 with anyio.fail_after(self._outer_config.start_timeout):
                     await start_signal.wait()

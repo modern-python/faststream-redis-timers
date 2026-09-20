@@ -1,5 +1,5 @@
 import warnings
-from collections.abc import Iterable
+from collections.abc import Sequence
 from typing import Any
 
 from fast_depends.dependencies import Dependant
@@ -24,7 +24,7 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
         max_polling_interval: float = 5.0,
         max_concurrent: int = 5,
         lease_ttl: int = 30,
-        dependencies: Iterable[Dependant] = (),
+        dependencies: Sequence[Dependant] = (),
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
         title_: str | None = None,

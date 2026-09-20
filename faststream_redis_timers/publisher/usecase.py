@@ -22,13 +22,18 @@ if typing.TYPE_CHECKING:
 
 class TimersPublisherSpecification(PublisherSpecification["TimersBrokerConfig", TimersPublisherSpecificationConfig]):  # ty: ignore[unresolved-reference]
     @property
-    def name(self) -> str:
+    def full_topic(self) -> str:
         prefix = getattr(self._outer_config, "prefix", "")
-        return f"{prefix}{self.config.topic}:Publisher"
+        return f"{prefix}{self.config.topic}"
+
+    @property
+    def name(self) -> str:
+        return f"{self.full_topic}:Publisher"
 
     def get_schema(self) -> dict[str, PublisherSpec]:
         return {
             self.name: PublisherSpec(
+                address=self.full_topic,
                 description=self.config.description_,
                 operation=Operation(
                     message=Message(

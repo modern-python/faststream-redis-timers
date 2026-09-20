@@ -31,7 +31,7 @@ class ScheduledTimer:
     headers: dict[str, typing.Any] | None = None
 
 
-class TestTimersBroker(TestBroker[TimersBroker, TimersBroker]):
+class TestTimersBroker(TestBroker[TimersBroker, TimersBroker], broker=TimersBroker):
     scheduled_timers: list[ScheduledTimer]
 
     def __init__(self, broker: TimersBroker, **kwargs: typing.Any) -> None:

@@ -97,7 +97,7 @@ class TimersBroker(
         start_timeout: float = 3.0,
         decoder: CustomCallable | None = None,
         parser: CustomCallable | None = None,
-        dependencies: Iterable[Dependant] = (),
+        dependencies: Sequence[Dependant] = (),
         middlewares: Sequence[type[BaseMiddleware] | BrokerMiddleware[TimerMessage]] = (),
         graceful_timeout: float | None = 15.0,
         routers: Sequence[Registrator[TimerMessage]] = (),
