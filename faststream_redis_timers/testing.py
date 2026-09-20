@@ -44,13 +44,14 @@ class TestTimersBroker(TestBroker[TimersBroker, TimersBroker], broker=TimersBrok
         publisher: TimersPublisher,
     ) -> tuple[TimersSubscriber, bool]:
         subscriber: TimersSubscriber | None = None
-        for handler in broker._subscribers:  # noqa: SLF001
+        # `broker.subscribers`, not `_subscribers`: the latter omits every router's.
+        for handler in broker.subscribers:
             if handler._config.full_topic == publisher.config.full_topic:  # noqa: SLF001
                 subscriber = handler
                 break
         if subscriber is None:
             is_real = False
-            subscriber = broker.subscriber(publisher.config.topic)
+            subscriber = broker.subscriber(publisher.config.full_topic)
         else:
             is_real = True
         return subscriber, is_real
@@ -123,8 +124,7 @@ class FakeTimersProducer(TimersProducer):
             data=payload,
         )
         for handler in self.broker.subscribers:
-            sub = typing.cast("TimersSubscriber", handler)
-            if sub._config.full_topic == topic:  # noqa: SLF001
+            if handler._config.full_topic == topic:  # noqa: SLF001
                 await handler.process_message(msg)
 
     async def cancel(self, full_topic: str, timer_id: str) -> None:

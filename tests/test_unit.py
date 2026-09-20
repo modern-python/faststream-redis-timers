@@ -2,7 +2,7 @@ import asyncio
 import inspect
 import logging
 import warnings
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anyio
@@ -555,6 +555,51 @@ def test_create_publisher_fake_subscriber_is_instance_method() -> None:
     """0.7's TestBroker base declares the method as an instance method."""
     sig = inspect.signature(TestTimersBroker.create_publisher_fake_subscriber)
     assert next(iter(sig.parameters)) == "self"
+
+
+async def test_publisher_is_wired_to_a_subscriber_declared_on_a_prefixed_router() -> None:
+    """INVARIANT: a publisher is wired to the real subscriber wherever that subscriber was declared.
+
+    `create_publisher_fake_subscriber` decides that by scanning the broker's subscribers, and
+    `broker._subscribers` holds only endpoints registered directly on the broker — a router's live
+    behind the `subscribers` property. Scanning the private list finds nothing for a router, so the
+    publisher is wired to a freshly built fake instead; behind a prefix that fake sits on the
+    unprefixed topic, which nothing publishes to, and the mock stays silent on a publish that
+    happened. Registering the fallback under the raw `topic` rather than `full_topic` breaks it the
+    same way.
+    """
+    broker = TimersBroker()
+    router = TimersRouter(prefix="app:")
+    sub = router.subscriber("reminders")
+
+    @sub
+    async def handle(body: str) -> None: ...
+
+    publisher = router.publisher("reminders")
+    broker.include_router(router)
+
+    async with TestTimersBroker(broker):
+        await publisher.publish("ping", activate_in=timedelta(0))
+        publisher.mock.assert_called_once_with("ping")
+
+
+@pytest.mark.parametrize("prefix", ["", "app:"], ids=["no-prefix", "prefixed"])
+async def test_router_publisher_does_not_add_a_second_subscriber(prefix: str) -> None:
+    """A publisher that already has a subscriber on its topic reuses it rather than building a fake."""
+    broker = TimersBroker()
+    router = TimersRouter(prefix=prefix)
+    sub = router.subscriber("reminders")
+
+    @sub
+    async def handle(body: str) -> None: ...
+
+    router.publisher("reminders")
+    broker.include_router(router)
+
+    async with TestTimersBroker(broker):
+        topics = [s._config.full_topic for s in broker.subscribers]  # noqa: SLF001
+
+    assert topics == [f"{prefix}reminders"]
 
 
 # --- TimerStore ---

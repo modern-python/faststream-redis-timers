@@ -112,6 +112,11 @@ class TimersBroker(
     _subscribers: list[TimersSubscriber]
     _publishers: list[TimersPublisher]
 
+    @property
+    @override
+    def subscribers(self) -> list[TimersSubscriber]:
+        return typing.cast("list[TimersSubscriber]", super().subscribers)
+
     def __init__(  # noqa: PLR0913
         self,
         client: "RedisClient | None" = None,
