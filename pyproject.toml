@@ -21,7 +21,8 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 dependencies = [
-    "faststream>=0.7.1,<0.8",
+    # 0.7.6 makes SubscriberUsecase.add_task return None and drops _get_broker_registry; lift once this adapts.
+    "faststream>=0.7.1,<0.7.6",
     "redis>=5.0",
     "typing-extensions>=4.12.0",
 ]
