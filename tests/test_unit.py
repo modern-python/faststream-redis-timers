@@ -10,6 +10,8 @@ import pytest
 from faststream._internal.parser import DefaultCodec
 from faststream._internal.testing.broker import find_test_broker
 from faststream.exceptions import IncorrectState
+from faststream.specification import AsyncAPI
+from redis.asyncio import Redis
 from redis.asyncio.cluster import RedisCluster
 from redis.exceptions import NoScriptError
 
@@ -178,6 +180,58 @@ async def test_publisher_request_raises() -> None:
     pub = broker.publisher("topic")
     with pytest.raises(NotImplementedError):
         await pub.request("x")
+
+
+# --- AsyncAPI document assembly ---
+
+
+async def test_asyncapi_document_carries_the_declared_channels() -> None:
+    """INVARIANT: a broker's endpoints reach the assembled AsyncAPI document, not just `get_schema()`.
+
+    Upstream collects channels only for brokers that reach `broker_servers`, and it fills that
+    mapping inside `for url in specification.url`. A broker whose spec carries an empty `url` is
+    therefore skipped outright and renders a structurally blank document — no servers, channels or
+    operations — while every per-endpoint `get_schema()` stays correct, so specification-level tests
+    cannot see it. Emptying `BrokerSpec.url` breaks this again, silently.
+    """
+    broker = TimersBroker(Redis.from_url("redis://cache.example:6399/3"))
+    sub = broker.subscriber("reminders")
+
+    @sub
+    async def handle(body: str) -> None: ...
+
+    broker.publisher("reminders")
+
+    async with TestTimersBroker(broker):
+        spec = AsyncAPI(broker).to_specification().to_jsonable()
+
+    assert sorted(spec["channels"]) == ["reminders:Handle", "reminders:Publisher"]
+    assert [server["host"] for server in spec["servers"].values()] == ["cache.example:6399"]
+
+
+def test_specification_url_carries_no_credentials() -> None:
+    """INVARIANT: the AsyncAPI server URL is rebuilt from connection parameters, never the DSN.
+
+    The document is published — FastStream serves it from the ASGI app — so a URL echoed back from
+    `Redis.from_url("redis://user:secret@...")` would publish the password. Reading the pool's
+    `username`/`password` into the URL, or passing the caller's DSN through, breaks it.
+    """
+    broker = TimersBroker(Redis.from_url("redis://user:secret@cache.example:6399/3"))
+
+    assert broker.specification.url == ["redis://cache.example:6399/3"]
+
+
+@pytest.mark.parametrize(
+    ("client", "expected"),
+    [
+        (None, "redis://timers/tl"),
+        (Redis.from_url("unix:///tmp/redis.sock?db=2"), "unix:///tmp/redis.sock"),
+        (Redis.from_url("rediss://cache.example:6379/0"), "rediss://cache.example:6379/0"),
+    ],
+    ids=["no-client", "unix-socket", "tls"],
+)
+def test_specification_url_shapes(client: Redis | None, expected: str) -> None:
+    assert TimersBroker(client, timeline_key="tl").specification.url == [expected]
 
 
 # --- TimersSubscriberSpecification.name / get_schema ---
