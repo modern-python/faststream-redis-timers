@@ -65,6 +65,49 @@ jobs:
           PYTHONUNBUFFERED: 1
           REDIS_URL: redis://127.0.0.1:6379/0
 
+  floors:
+    # Every other job resolves newest, so the declared floors are a claim nothing installs.
+    # This one resolves the bottom of each range, on every matrix entry: wheel coverage is
+    # per interpreter, so two interpreters resolving the same versions can still disagree
+    # on whether those versions install.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+          - "3.14t"
+    services:
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - run: uv python install ${{ matrix.python-version }}
+      - run: uv python pin ${{ matrix.python-version }}
+      # --no-build so a floor with no wheel for this interpreter fails here instead of
+      # quietly compiling its sdist; --no-install-project because that flag would refuse to
+      # build this project too, and the tests import it from the checkout.
+      - run: uv sync --all-extras --no-install-project --resolution lowest-direct --no-build
+      - run: uv run --no-sync pytest
+        env:
+          PYTHONDONTWRITEBYTECODE: 1
+          PYTHONUNBUFFERED: 1
+          REDIS_URL: redis://127.0.0.1:6379/0
+
   links:
     runs-on: ubuntu-latest
     steps:
