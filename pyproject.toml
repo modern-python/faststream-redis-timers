@@ -31,10 +31,11 @@ dependencies = [
     # 4.12.2, not 4.12.0: pydantic requires >=4.12.2 on 3.13+, and pinning 4.12.0 drags pydantic
     # back to a build whose pydantic-core has no cp313 wheel either.
     "typing-extensions>=4.12.2",
+    # pydantic 2.12, the 3.14 floor above, requires >=4.14.1.
+    "typing-extensions>=4.14.1; python_version >= '3.14'",
 ]
 
 [dependency-groups]
-# Floored so `uv sync --resolution lowest-direct` resolves a usable harness, not each name's first release.
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
