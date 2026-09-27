@@ -4,6 +4,7 @@ import os
 import time
 import uuid
 
+import pytest
 from faststream import Context
 from redis.asyncio import Redis
 
@@ -108,8 +109,10 @@ def test_non_json_payload_starting_with_brace_parses_as_raw_body() -> None:
     assert TimerMessageFormat.parse(b"{not json") == (b"{not json", {})
 
 
-def test_legacy_envelope_with_non_hex_body_parses_as_empty_body() -> None:
-    assert TimerMessageFormat.parse(b'{"b": "zz"}') == (b"", {})
+@pytest.mark.parametrize("envelope", [b'{"b": "zz"}', b'{"b": 12}', b'{"b": null}'])
+def test_legacy_envelope_with_non_hex_body_is_rejected(envelope: bytes) -> None:
+    with pytest.raises(ValueError, match="legacy timer envelope"):
+        TimerMessageFormat.parse(envelope)
 
 
 async def test_works_with_decode_responses_true() -> None:
@@ -174,3 +177,31 @@ async def test_legacy_envelope_still_parses(redis_client: Redis) -> None:
         await asyncio.wait_for(event.wait(), timeout=5.0)
 
     assert seen == ["hello"]
+
+
+async def test_legacy_envelope_with_non_hex_body_never_reaches_handler(redis_client: Redis) -> None:
+    suffix = uuid.uuid4().hex
+    broker = TimersBroker(
+        redis_client,
+        timeline_key=f"corrupt_tl_{suffix}",
+        payloads_key=f"corrupt_pl_{suffix}",
+    )
+    timeline_key = f"corrupt_tl_{suffix}:topic"
+    payloads_key = f"corrupt_pl_{suffix}:topic"
+
+    due_at = time.time() - 1
+    await redis_client.zadd(timeline_key, {"old-timer": due_at})
+    await redis_client.hset(payloads_key, "old-timer", b'{"b": "zz"}')
+
+    seen: list[bytes] = []
+
+    @broker.subscriber("topic")
+    async def handler(body: bytes) -> None:  # pragma: no cover - never invoked; the parser rejects the timer
+        seen.append(body)
+
+    async with broker:
+        await asyncio.sleep(0.3)
+
+    assert seen == []
+    assert (await redis_client.zscore(timeline_key, "old-timer") or 0) > due_at
+    assert await redis_client.hexists(payloads_key, "old-timer")
