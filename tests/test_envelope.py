@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 import time
 import uuid
@@ -179,18 +180,20 @@ async def test_legacy_envelope_still_parses(redis_client: Redis) -> None:
     assert seen == ["hello"]
 
 
-async def test_legacy_envelope_with_non_hex_body_never_reaches_handler(redis_client: Redis) -> None:
+async def test_legacy_envelope_with_non_hex_body_is_removed_and_logged_once(
+    redis_client: Redis, caplog: pytest.LogCaptureFixture
+) -> None:
     suffix = uuid.uuid4().hex
     broker = TimersBroker(
         redis_client,
         timeline_key=f"corrupt_tl_{suffix}",
         payloads_key=f"corrupt_pl_{suffix}",
+        logger=logging.getLogger(f"corrupt-{suffix}"),
     )
     timeline_key = f"corrupt_tl_{suffix}:topic"
     payloads_key = f"corrupt_pl_{suffix}:topic"
 
-    due_at = time.time() - 1
-    await redis_client.zadd(timeline_key, {"old-timer": due_at})
+    await redis_client.zadd(timeline_key, {"old-timer": time.time() - 1})
     await redis_client.hset(payloads_key, "old-timer", b'{"b": "zz"}')
 
     seen: list[bytes] = []
@@ -199,9 +202,13 @@ async def test_legacy_envelope_with_non_hex_body_never_reaches_handler(redis_cli
     async def handler(body: bytes) -> None:  # pragma: no cover - never invoked; the parser rejects the timer
         seen.append(body)
 
-    async with broker:
-        await asyncio.sleep(0.3)
+    with caplog.at_level(logging.ERROR, logger=f"corrupt-{suffix}"):
+        async with broker:
+            await asyncio.sleep(0.3)
 
     assert seen == []
-    assert (await redis_client.zscore(timeline_key, "old-timer") or 0) > due_at
-    assert await redis_client.hexists(payloads_key, "old-timer")
+    assert await redis_client.zscore(timeline_key, "old-timer") is None
+    assert not await redis_client.hexists(payloads_key, "old-timer")
+    removals = [record for record in caplog.records if "removed" in record.getMessage()]
+    assert len(removals) == 1
+    assert "'old-timer'" in removals[0].getMessage()
