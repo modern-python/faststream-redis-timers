@@ -47,10 +47,3 @@ class TimersBrokerConfig(BrokerConfig):
 
     async def disconnect(self) -> None:
         await self.connection.disconnect()
-
-
-@dataclass(kw_only=True)
-class TimersRouterConfig(BrokerConfig):
-    @property
-    def connection(self) -> None:  # pragma: no cover
-        raise IncorrectState

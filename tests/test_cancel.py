@@ -8,7 +8,7 @@ from faststream_redis_timers import TimersBroker
 
 async def test_cancel_timer_via_broker(broker: TimersBroker) -> None:
     @broker.subscriber("topic")
-    async def handler(body: str) -> None:  # pragma: no cover
+    async def handler(body: str) -> None:  # pragma: no cover - never invoked; the test asserts the timer does not fire
         pytest.fail(f"Handler should not be called, got: {body!r}")
 
     async with broker:
@@ -21,7 +21,7 @@ async def test_cancel_timer_via_publisher(broker: TimersBroker) -> None:
     pub = broker.publisher("topic")
 
     @broker.subscriber("topic")
-    async def handler(body: str) -> None:  # pragma: no cover
+    async def handler(body: str) -> None:  # pragma: no cover - never invoked; the test asserts the timer does not fire
         pytest.fail(f"Handler should not be called, got: {body!r}")
 
     async with broker:
@@ -37,7 +37,7 @@ async def test_cancel_nonexistent_timer_is_noop(broker: TimersBroker) -> None:
 
 async def test_future_timer_does_not_fire_immediately(broker: TimersBroker) -> None:
     @broker.subscriber("topic")
-    async def handler(body: str) -> None:  # pragma: no cover
+    async def handler(body: str) -> None:  # pragma: no cover - never invoked; the test asserts the timer does not fire
         pytest.fail(f"Handler should not be called, got: {body!r}")
 
     async with broker:

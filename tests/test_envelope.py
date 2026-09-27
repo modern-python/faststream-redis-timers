@@ -104,12 +104,20 @@ async def test_envelope_size_smaller_than_legacy() -> None:
     assert len(new) < len(body) + 200
 
 
+def test_non_json_payload_starting_with_brace_parses_as_raw_body() -> None:
+    assert TimerMessageFormat.parse(b"{not json") == (b"{not json", {})
+
+
+def test_legacy_envelope_with_non_hex_body_parses_as_empty_body() -> None:
+    assert TimerMessageFormat.parse(b'{"b": "zz"}') == (b"", {})
+
+
 async def test_works_with_decode_responses_true() -> None:
     """A Redis client created with decode_responses=True must not break payload parsing."""
     client = Redis.from_url(REDIS_URL, decode_responses=True)
     try:
         await client.ping()
-    except Exception:  # noqa: BLE001  # pragma: no cover
+    except Exception:  # noqa: BLE001  # pragma: no cover - runs only when Redis is unreachable
         await client.aclose()  # ty: ignore[unresolved-attribute]
         return
 

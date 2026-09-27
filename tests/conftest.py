@@ -15,7 +15,7 @@ async def redis_client() -> Redis:  # ty: ignore[invalid-return-type]
     client = Redis.from_url(REDIS_URL)
     try:
         await client.ping()
-    except Exception as exc:  # noqa: BLE001  # pragma: no cover
+    except Exception as exc:  # noqa: BLE001  # pragma: no cover - runs only when Redis is unreachable
         await client.aclose()  # ty: ignore[unresolved-attribute]
         pytest.skip(f"Redis not available at {REDIS_URL}: {exc}")
     yield client

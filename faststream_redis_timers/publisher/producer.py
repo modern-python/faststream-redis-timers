@@ -41,13 +41,16 @@ class TimersProducer:
     async def cancel(self, full_topic: str, timer_id: str) -> None:
         await self._store.remove(full_topic, timer_id)
 
-    async def request(self, cmd: TimerPublishCommand) -> typing.NoReturn:  # pragma: no cover
+    async def request(
+        self,
+        cmd: TimerPublishCommand,
+    ) -> typing.NoReturn:  # pragma: no cover - ProducerProto requires it; broker and publisher request() raise first
         msg = "Timers do not support request-reply"
         raise NotImplementedError(msg)
 
-    async def publish_batch(self, cmd: TimerPublishCommand) -> typing.NoReturn:  # pragma: no cover
+    async def publish_batch(
+        self,
+        cmd: TimerPublishCommand,
+    ) -> typing.NoReturn:  # pragma: no cover - ProducerProto requires it; TimersBroker.publish_batch() raises first
         msg = "Use multiple publish() calls for multiple timers"
         raise NotImplementedError(msg)
-
-    def connect(self, serializer: "SerializerProto | None" = None) -> None:  # pragma: no cover
-        self.serializer = serializer
