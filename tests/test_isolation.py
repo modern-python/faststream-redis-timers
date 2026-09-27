@@ -46,7 +46,7 @@ async def test_separate_topics_do_not_cross(broker: TimersBroker) -> None:
         event.set()
 
     @broker.subscriber("topic-b")
-    async def handler_b(body: str) -> None:  # pragma: no cover
+    async def handler_b(body: str) -> None:  # pragma: no cover - never invoked; the test asserts topic-b gets nothing
         pytest.fail(f"topic-b handler should not fire, got: {body!r}")
 
     async with broker:
@@ -155,12 +155,12 @@ async def test_two_brokers_same_keys_deliver_once(redis_client: Redis) -> None:
     event = asyncio.Event()
 
     @broker_a.subscriber("topic")
-    async def handler_a(body: str) -> None:  # pragma: no cover
+    async def handler_a(body: str) -> None:  # pragma: no cover - one racing broker claims the timer; which is random
         received.append(body)
         event.set()
 
     @broker_b.subscriber("topic")
-    async def handler_b(body: str) -> None:  # pragma: no cover
+    async def handler_b(body: str) -> None:  # pragma: no cover - one racing broker claims the timer; which is random
         received.append(body)
         event.set()
 

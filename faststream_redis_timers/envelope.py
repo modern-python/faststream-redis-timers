@@ -17,12 +17,12 @@ class TimerMessageFormat(BinaryMessageFormatV1):
         if data[:1] == b"{":
             try:
                 d = json.loads(data)
-            except (json.JSONDecodeError, ValueError):  # pragma: no cover
+            except (json.JSONDecodeError, ValueError):
                 d = None
             if isinstance(d, dict) and "b" in d:
                 try:
                     body = bytes.fromhex(d["b"])
-                except (TypeError, ValueError):  # pragma: no cover
+                except (TypeError, ValueError):
                     body = b""
                 headers: dict[str, Any] = {}
                 if d.get("ct"):

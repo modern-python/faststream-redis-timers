@@ -2,7 +2,6 @@ import typing
 from dataclasses import dataclass
 
 from faststream._internal.configs import SubscriberSpecificationConfig, SubscriberUsecaseConfig
-from faststream._internal.constants import EMPTY
 from faststream.middlewares import AckPolicy
 
 from faststream_redis_timers.schemas import TimerSub
@@ -23,9 +22,7 @@ class TimersSubscriberConfig(SubscriberUsecaseConfig):
 
     @property
     def ack_policy(self) -> AckPolicy:
-        if self._ack_policy is EMPTY:
-            return AckPolicy.NACK_ON_ERROR
-        return self._ack_policy  # pragma: no cover
+        return AckPolicy.NACK_ON_ERROR
 
 
 @dataclass(kw_only=True)
