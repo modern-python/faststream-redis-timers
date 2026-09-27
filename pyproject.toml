@@ -34,7 +34,6 @@ dependencies = [
 ]
 
 [dependency-groups]
-# Floored so `uv sync --resolution lowest-direct` resolves a usable harness, not each name's first release.
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
