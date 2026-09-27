@@ -22,8 +22,9 @@ class TimerMessageFormat(BinaryMessageFormatV1):
             if isinstance(d, dict) and "b" in d:
                 try:
                     body = bytes.fromhex(d["b"])
-                except (TypeError, ValueError):
-                    body = b""
+                except (TypeError, ValueError) as e:
+                    msg = "legacy timer envelope body is not hex"
+                    raise ValueError(msg) from e
                 headers: dict[str, Any] = {}
                 if d.get("ct"):
                     headers["content-type"] = d["ct"]

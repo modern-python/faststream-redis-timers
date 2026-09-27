@@ -1,3 +1,4 @@
+import logging
 import typing
 from functools import partial
 
@@ -17,9 +18,20 @@ class TimerParser:
         self._config = config
 
     async def parse_message(self, msg: "TimerMessage") -> TimerStreamMessage:
-        body, headers = TimerMessageFormat.parse(msg["data"])
         timer_id = msg["timer_id"]
-        store = self._config._outer_config.store  # noqa: SLF001
+        outer_config = self._config._outer_config  # noqa: SLF001
+        store = outer_config.store
+        try:
+            body, headers = TimerMessageFormat.parse(msg["data"])
+        except ValueError as e:
+            await store.remove(self._config.full_topic, timer_id)
+            outer_config.logger.log(
+                f"Timer {timer_id!r} on {self._config.full_topic!r} removed: "
+                f"its {len(msg['data'])}-byte payload cannot be parsed",
+                logging.ERROR,
+                exc_info=e,
+            )
+            raise
         return TimerStreamMessage(
             raw_message=msg,
             body=body,
