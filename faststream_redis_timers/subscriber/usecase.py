@@ -80,7 +80,7 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
 
         start_signal = anyio.Event()
         if self.calls:
-            self.add_task(self._consume, (self._client,), {"start_signal": start_signal})
+            self.add_task(self._consume, func_kwargs={"start_signal": start_signal})
             consume_task = self.tasks[-1]
             try:
                 with anyio.fail_after(self._outer_config.start_timeout):
@@ -96,9 +96,9 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         else:
             start_signal.set()
 
-    async def _consume(self, client: "RedisClient", *, start_signal: anyio.Event) -> None:
+    async def _consume(self, *, start_signal: anyio.Event) -> None:
         with suppress(Exception):
-            if await client.ping():
+            if await self._client.ping():
                 start_signal.set()
 
         schedule = PollSchedule(
