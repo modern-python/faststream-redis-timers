@@ -22,8 +22,9 @@ The `prefix` you pass to `TimersRouter` is concatenated to every topic registere
 ```python
 router = TimersRouter(prefix="my-service:")
 
+
 @router.subscriber("invoices")
-async def handle_invoice(...): ...
+async def handle_invoice(invoice_id: str) -> None: ...
 ```
 
 …the subscriber listens on the full topic `my-service:invoices`, and Redis stores its timers under:

@@ -81,8 +81,8 @@ async def schedule_reminder() -> None:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `client` | _required for production_ | `redis.asyncio.Redis` client instance — the caller owns its lifecycle (the broker does not close it). The constructor accepts `None`, but a broker without a client raises `IncorrectState` on the first operation; `None` is the test-broker shape (see [Testing](./testing.md)). |
-| `timeline_key` | `timers_timeline` | Sorted set key name |
-| `payloads_key` | `timers_payloads` | Hash key name |
+| `timeline_key` | `timers_timeline` | Sorted set key prefix; each topic uses `{timeline_key}:{topic}` |
+| `payloads_key` | `timers_payloads` | Hash key prefix; each topic uses `{payloads_key}:{topic}` |
 | `start_timeout` | `3.0` | Seconds to wait for the subscriber's first Redis ping during startup |
 | `graceful_timeout` | `15.0` | Seconds to wait for in-flight timers on shutdown |
 
@@ -92,7 +92,7 @@ connection is released when the application stops.
 
 ## Timer IDs
 
-Each timer has a unique `timer_id`. If you don't provide one, a UUID is generated automatically. You can supply your own to make a timer idempotent — publishing the same `timer_id` twice will **overwrite the first** silently (no error, no warning). This is the right behavior for idempotent retry of `publish()` calls but a footgun if two unrelated callers pick the same ID. Namespace your IDs (e.g., `f"invoice-{invoice_id}-due"`) to avoid accidental collisions.
+Each timer has a unique `timer_id`. If you don't provide one, a UUID is generated automatically. You can supply your own to make a timer idempotent — publishing the same `timer_id` twice will **overwrite the first** silently (no error, no warning). This makes retries of `publish()` safe, but two unrelated callers that pick the same ID will overwrite each other. Namespace your IDs (e.g., `f"invoice-{invoice_id}-due"`) to avoid accidental collisions.
 
 ```python
 await broker.publish(
@@ -166,7 +166,7 @@ If you are polling `has_pending` to detect *"the timer fired and the handler fin
 
 ### `cancel_all` race with executing handlers
 
-If `cancel_all(topic)` runs while a worker is mid-handler for a leased timer on that topic, the handler runs to completion. When it finishes, its commit (the `ZREM` + `HDEL` that normally removes the timer) becomes a no-op because `cancel_all` has already deleted both keys for the topic. The work is *not* rolled back — only the bookkeeping is skipped — so handlers that have side effects (sent emails, written rows) will have already done them. Use `cancel_all` for topic resets, not for "stop everything in flight."
+If `cancel_all(topic)` runs while a worker is mid-handler for a leased timer on that topic, the handler runs to completion. When it finishes, its commit (the `ZREM` + `HDEL` that normally removes the timer) becomes a no-op because `cancel_all` has already deleted both keys for the topic. Side effects stay; only the Redis cleanup is skipped, so handlers that have side effects (sent emails, written rows) will have already done them. Use `cancel_all` for topic resets, not for "stop everything in flight."
 
 ## Debug logging
 

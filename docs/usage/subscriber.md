@@ -66,7 +66,7 @@ Configure polling behaviour per subscriber:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `polling_interval` | `0.05` s | Base poll interval; the floor used when the topic has due timers |
-| `max_polling_interval` | `5.0` s | Cap for adaptive idle backoff (doubles per empty cycle, ±50% jitter) |
+| `max_polling_interval` | `5.0` s | Cap for adaptive idle backoff (doubles per empty cycle, ±50% jitter applied before the cap) |
 | `max_concurrent` | `5` | Max handlers running in parallel; also caps fetch batch size per poll |
 | `lease_ttl` | `30` s | How long a worker holds the lease before another worker may re-claim |
 
@@ -81,7 +81,7 @@ Configure polling behaviour per subscriber:
 async def handle_urgent(body: str) -> None: ...
 ```
 
-The poll loop uses adaptive backoff: when there are no due timers, the next sleep doubles from `polling_interval` up to `max_polling_interval` and is multiplied by a random factor in `[0.5, 1.5]` to avoid thundering-herd bursts across worker fleets. The counter resets the moment a poll returns work. Worst-case delivery latency for a newly-published timer in a previously-idle topic is `max_polling_interval × 1.5`, plus any time spent waiting for the `max_concurrent` limiter when in-flight handlers are still holding capacity (back-pressure).
+The poll loop uses adaptive backoff: when there are no due timers, the next sleep doubles from `polling_interval` up to `max_polling_interval` and is multiplied by a random factor in `[0.5, 1.5]` before the cap is applied, to avoid thundering-herd bursts across worker fleets. The counter resets the moment a poll returns work. Worst-case delivery latency for a newly-published timer in a previously-idle topic is `max_polling_interval`, plus any time spent waiting for the `max_concurrent` limiter when in-flight handlers are still holding capacity (back-pressure).
 
 !!! warning "Handlers must be idempotent and concurrency-safe"
     A handler that runs longer than `lease_ttl`, or a worker that crashes after the handler ran but before the commit landed, may cause the timer to be delivered more than once. Design handlers to be safe under retry. Because `max_concurrent` invocations run in parallel, handlers must also be safe under concurrent execution (no unsynchronized shared state).
@@ -97,7 +97,7 @@ The default ack policy is `NACK_ON_ERROR`: the timer is acknowledged (removed fr
 | Handler returns normally | Timer removed from Redis |
 | Handler raises an exception | Timer left in Redis for retry on next poll |
 
-To manually control acknowledgement, inject the `NoCast`-typed message:
+To manually control acknowledgement, inject the message:
 
 ```python
 from faststream.message import StreamMessage
