@@ -22,7 +22,7 @@
 
 ## Requirements
 
-- Python 3.13+
+- Python 3.11+
 - Redis 5.0+
 - A running Redis instance
 

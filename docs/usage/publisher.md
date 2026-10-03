@@ -68,7 +68,6 @@ The `publish()` method on a publisher accepts the parameters below and returns t
 
 ```python
 from faststream import Context
-from faststream.message import StreamMessage
 
 pub = broker.publisher("orders")
 

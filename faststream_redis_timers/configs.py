@@ -25,7 +25,7 @@ class ConnectionState:
     @property
     def client(self) -> "RedisClient":
         if self._client is None:
-            msg = "Connection not available. Connect the broker first."
+            msg = "TimersBroker has no Redis client; pass one to TimersBroker(client)."
             raise IncorrectState(msg)
         return self._client
 

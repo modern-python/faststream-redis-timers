@@ -49,7 +49,7 @@ def test_timers_broker_registered_in_test_broker_registry() -> None:
 
 def test_connection_state_client_not_set_raises() -> None:
     state = ConnectionState()
-    with pytest.raises(IncorrectState):
+    with pytest.raises(IncorrectState, match=r"pass one to TimersBroker\(client\)"):
         _ = state.client
 
 
