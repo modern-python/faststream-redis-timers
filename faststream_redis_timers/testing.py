@@ -16,7 +16,7 @@ from faststream_redis_timers.subscriber.usecase import TimersSubscriber
 
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,13 +57,13 @@ class TestTimersBroker(TestBroker[TimersBroker, TimersBroker], broker=TimersBrok
         return subscriber, is_real
 
     @contextmanager
-    def _patch_producer(self, broker: TimersBroker) -> "Iterator[None]":
+    def _patch_producer(self, broker: TimersBroker) -> "Generator[None]":
         producer = FakeTimersProducer(broker, scheduled_timers=self.scheduled_timers)
         with change_producer(broker.config.broker_config, producer):
             yield
 
     @contextmanager
-    def _patch_broker(self, broker: TimersBroker) -> "Iterator[None]":
+    def _patch_broker(self, broker: TimersBroker) -> "Generator[None]":
         # Test-broker contract: messages deliver immediately, so there are
         # never any pending timers. Stub the inspection paths to return that.
         mock_client = AsyncMock()
