@@ -114,7 +114,7 @@ class TimersBroker(
 
     @property
     @override
-    def subscribers(self) -> list[TimersSubscriber]:
+    def subscribers(self) -> list[TimersSubscriber]:  # ty: ignore[invalid-property-type-override]
         return typing.cast("list[TimersSubscriber]", super().subscribers)
 
     def __init__(  # noqa: PLR0913
