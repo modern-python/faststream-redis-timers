@@ -2,6 +2,7 @@ import logging
 import typing
 from collections.abc import Iterable, Sequence
 from datetime import datetime, timedelta
+from weakref import WeakSet
 
 from fast_depends.dependencies import Dependant
 from faststream import BaseMiddleware
@@ -25,7 +26,6 @@ from typing_extensions import override
 from faststream_redis_timers.configs import ConnectionState, RedisClient, TimersBrokerConfig
 from faststream_redis_timers.message import TimerMessage
 from faststream_redis_timers.publisher.producer import TimersProducer
-from faststream_redis_timers.publisher.usecase import TimersPublisher
 from faststream_redis_timers.registrator import TimersRegistrator
 from faststream_redis_timers.response import TimerPublishCommand, resolve_activate_at
 from faststream_redis_timers.store import TimerStore
@@ -109,8 +109,7 @@ class TimersBroker(
     brokers; making the broker close it would break that pattern.
     """
 
-    _subscribers: list[TimersSubscriber]
-    _publishers: list[TimersPublisher]
+    _subscribers: WeakSet[TimersSubscriber]  # ty: ignore[invalid-attribute-override]
 
     @property
     @override

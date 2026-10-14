@@ -10,7 +10,7 @@ if typing.TYPE_CHECKING:
 
 @dataclass(kw_only=True)
 class TimersPublisherConfig(PublisherUsecaseConfig):
-    _outer_config: "TimersBrokerConfig"
+    _outer_config: "TimersBrokerConfig"  # ty: ignore[invalid-mutable-override]
     topic: str
 
     @property
