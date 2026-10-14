@@ -13,7 +13,7 @@ if typing.TYPE_CHECKING:
 
 @dataclass(kw_only=True)
 class TimersSubscriberConfig(SubscriberUsecaseConfig):
-    _outer_config: "TimersBrokerConfig"
+    _outer_config: "TimersBrokerConfig"  # ty: ignore[invalid-mutable-override]
     timer_sub: TimerSub
 
     @property
