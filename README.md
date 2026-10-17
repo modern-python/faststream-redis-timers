@@ -179,11 +179,11 @@ broker = TimersBroker(
 )
 ```
 
-## 📚 [Documentation](https://faststream-redis-timers.modern-python.org)
+## Links
 
-## 📦 [PyPI](https://pypi.org/project/faststream-redis-timers)
-
-## 📝 [License](https://github.com/modern-python/faststream-redis-timers/blob/main/LICENSE)
+- [Documentation](https://faststream-redis-timers.modern-python.org)
+- [PyPI](https://pypi.org/project/faststream-redis-timers)
+- [License](https://github.com/modern-python/faststream-redis-timers/blob/main/LICENSE)
 
 ## Part of `modern-python`
 
