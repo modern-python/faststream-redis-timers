@@ -86,7 +86,7 @@ The poll loop uses adaptive backoff: when there are no due timers, the next slee
 !!! warning "Handlers must be idempotent and concurrency-safe"
     A handler that runs longer than `lease_ttl`, or a worker that crashes after the handler ran but before the commit landed, may cause the timer to be delivered more than once. Design handlers to be safe under retry. Because `max_concurrent` invocations run in parallel, handlers must also be safe under concurrent execution (no unsynchronized shared state).
 
-    A handler that raises *every* time is also retried indefinitely — the lease score expires after `lease_ttl` seconds and the next poll re-claims the timer, so `lease_ttl` is the lower bound on the retry interval (e.g., the default `lease_ttl=30` retries a poison-pill handler about twice a minute). Raise `faststream.exceptions.RejectMessage` from your handler to permanently drop a timer that should never be retried.
+    A handler that raises *every* time is also retried indefinitely: the lease score expires after `lease_ttl` seconds and the next poll re-claims the timer, so `lease_ttl` is the lower bound on the retry interval (e.g., the default `lease_ttl=30` retries a poison-pill handler about twice a minute). Raise `faststream.exceptions.RejectMessage` from your handler to permanently drop a timer that should never be retried.
 
 ## Ack policy
 

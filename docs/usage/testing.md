@@ -1,6 +1,6 @@
 # Testing
 
-`faststream-redis-timers` provides `TestTimersBroker` — a test context manager that replaces the Redis producer with an in-memory fake that delivers messages synchronously. No Redis connection required.
+`faststream-redis-timers` provides `TestTimersBroker`, a test context manager that replaces the Redis producer with an in-memory fake that delivers messages synchronously. No Redis connection required.
 
 ## Basic test
 
@@ -50,7 +50,7 @@ async def test_publisher() -> None:
 
 ## Inspecting scheduled timers
 
-`TestTimersBroker.scheduled_timers` records every `publish()` call as a `ScheduledTimer` — useful for asserting that a unit of work scheduled the right follow-up without actually waiting for it.
+`TestTimersBroker.scheduled_timers` records every `publish()` call as a `ScheduledTimer`, which is useful for asserting that a unit of work scheduled the right follow-up without actually waiting for it.
 
 ```python
 from datetime import UTC, datetime, timedelta
@@ -83,13 +83,13 @@ Each `ScheduledTimer` has `topic`, `timer_id`, `activate_at`, `body`, `correlati
 
 ## Notes
 
-- `activate_at` / `activate_in` are **ignored** in tests — messages are delivered immediately. The intended firing time is preserved on `scheduled_timers[i].activate_at` for assertions.
+- `activate_at` / `activate_in` are **ignored** in tests; messages are delivered immediately. The intended firing time is preserved on `scheduled_timers[i].activate_at` for assertions.
 - `timer_id` is passed through normally and available in the handler via the message.
-- `cancel_timer` / `publisher.cancel()` are no-ops in tests — since messages are delivered immediately, by the time you'd cancel, the handler has already run.
-- `publisher.fetch_redis_timers()` always returns `[]` in tests — timers are delivered instantly, so there are never any pending entries.
+- `cancel_timer` / `publisher.cancel()` are no-ops in tests: messages are delivered immediately, so by the time you'd cancel, the handler has already run.
+- `publisher.fetch_redis_timers()` always returns `[]` in tests. Timers are delivered instantly, so there are never any pending entries.
 - The inspection / bulk-cancel methods follow the same "nothing pending" contract: `broker.has_pending(...)` returns `False`, `broker.get_pending_timers(...)` returns `[]`, and `broker.cancel_all(...)` returns `0`. Use `TestTimersBroker.scheduled_timers` to assert *what was published*; the inspection API is for production introspection.
 - The fake producer uses the same envelope format as the real one, so all serialization paths are exercised.
-- `lease_ttl` and re-delivery are **not** simulated — handlers that exceed the configured TTL in production may be re-delivered to another worker, but tests will only invoke the handler once. Idempotency must be verified separately.
+- `lease_ttl` and re-delivery are **not** simulated. Handlers that exceed the configured TTL in production may be re-delivered to another worker, but tests will only invoke the handler once. Idempotency must be verified separately.
 
 ## pytest-asyncio configuration
 

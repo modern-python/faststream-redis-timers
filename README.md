@@ -24,7 +24,7 @@ Schedule messages to be delivered to subscribers at a future point in time, with
 
 > **Already using Postgres?** Prefer [`faststream-outbox`](https://github.com/modern-python/faststream-outbox), which also supports
 > [timers](https://faststream-outbox.modern-python.org/usage/timers/) and lets you schedule a timer in the **same SQLAlchemy
-> transaction** as the domain write — no dual-write between your DB and Redis. Reach for `faststream-redis-timers` when your stack
+> transaction** as the domain write, which avoids a dual-write between your DB and Redis. Reach for `faststream-redis-timers` when your stack
 > doesn't include Postgres, or when you want timer scheduling decoupled from your relational store.
 
 ```python
@@ -72,10 +72,10 @@ Timers are stored in Redis as two keys **per topic**:
 - A **sorted set** (`timers_timeline:{topic}`) with the activation timestamp as score
 - A **hash** (`timers_payloads:{topic}`) with the serialized message body
 
-So a timer on the `invoices` topic lives under `timers_timeline:invoices` and `timers_payloads:invoices` — handy when poking around in `redis-cli`. A `TimersRouter(prefix="my-service:")` extends the suffix to `my-service:invoices`.
+So a timer on the `invoices` topic lives under `timers_timeline:invoices` and `timers_payloads:invoices`; those are the keys to look up in `redis-cli`. A `TimersRouter(prefix="my-service:")` extends the suffix to `my-service:invoices`.
 
 A polling loop checks for due timers and atomically claims each one via a Lua
-script that pushes its score forward by `lease_ttl` seconds — granting the
+script that pushes its score forward by `lease_ttl` seconds, which grants the
 worker a lease. The timer is removed from Redis only **after** the handler
 completes successfully. If the worker crashes mid-handler or the handler
 raises, the lease eventually expires and another worker re-claims the timer.
@@ -93,7 +93,7 @@ await broker.cancel_timer("invoices", timer_id)
 
 ## Tracing & headers
 
-`publish()` accepts `correlation_id` and `headers` — both round-trip to the handler via the standard FastStream `StreamMessage`:
+`publish()` accepts `correlation_id` and `headers`. Both round-trip to the handler via the standard FastStream `StreamMessage`:
 
 ```python
 await broker.publish(
@@ -120,7 +120,7 @@ async def handle(
 
 ## Connection ownership
 
-`TimersBroker` does **not** close the Redis client you pass in — the caller owns
+`TimersBroker` does **not** close the Redis client you pass in; the caller owns
 its lifecycle. The same client can be shared across multiple brokers, so closing
 it from one broker would surprise the others. Manage the client with `async with`
 or a `try/finally`:
@@ -136,16 +136,16 @@ async with Redis.from_url("redis://localhost:6379") as client:
 
 Per-subscriber knobs (passed to `@broker.subscriber("topic", ...)`):
 
-- `lease_ttl` (default `30` seconds) — how long a worker holds the lease while
+- `lease_ttl` (default `30` seconds): how long a worker holds the lease while
   processing. Handlers must complete within this window or another worker may
   re-deliver the timer (duplicate). Increase if your handlers are slow.
-- `polling_interval` (default `0.05` s) — base poll interval used when the topic
+- `polling_interval` (default `0.05` s): base poll interval used when the topic
   has due timers or just transitioned from idle. Doubles on each consecutive empty
   cycle, capped at `max_polling_interval`, with ±50% jitter applied before the cap.
-- `max_polling_interval` (default `5.0` s) — ceiling for the adaptive idle
+- `max_polling_interval` (default `5.0` s): ceiling for the adaptive idle
   backoff. Lower it for tighter delivery latency on idle topics; raise it to
   reduce Redis load on workloads with long idle stretches.
-- `max_concurrent` (default `5`) — maximum number of handlers running in
+- `max_concurrent` (default `5`): maximum number of handlers running in
   parallel per subscriber. Also caps the fetch batch size per poll cycle.
   Handlers must be safe under concurrency in addition to being idempotent.
 
@@ -155,7 +155,7 @@ Per-subscriber knobs (passed to `@broker.subscriber("topic", ...)`):
   ack failed to land in Redis (network blip) will be retried; a handler that
   takes longer than `lease_ttl` may be re-delivered to another worker.
 - **Buggy handler retries forever.** If a handler always raises, the timer is
-  retried every `lease_ttl` seconds indefinitely — there is no built-in
+  retried every `lease_ttl` seconds indefinitely, since there is no built-in
   attempt counter. Raise `faststream.exceptions.RejectMessage` from your
   handler to drop a poison-pill timer permanently, or track attempts in your
   own state if you need a hard cap.
@@ -188,4 +188,4 @@ broker = TimersBroker(
 ## Part of `modern-python`
 
 Browse the full list of templates and libraries in
-[`modern-python`](https://github.com/modern-python) — see the org profile for the categorized index.
+[`modern-python`](https://github.com/modern-python); the org profile has the categorized index.

@@ -24,7 +24,7 @@ async def handle_reminder(message: str) -> None:
 
 ## 3. Publish a timer
 
-Use `broker.publish()` with `activate_in` (relative delay) or `activate_at` (absolute time) to schedule delivery. `publish()` returns the resolved `timer_id` — keep it for cancellation or inspection.
+Use `broker.publish()` with `activate_in` (relative delay) or `activate_at` (absolute time) to schedule delivery. `publish()` returns the resolved `timer_id`. Keep it for cancellation or inspection.
 
 ```python
 from datetime import UTC, datetime, timedelta
@@ -80,19 +80,19 @@ async def schedule_reminder() -> None:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `client` | _required for production_ | `redis.asyncio.Redis` client instance — the caller owns its lifecycle (the broker does not close it). The constructor accepts `None`, but a broker without a client raises `IncorrectState` on the first operation; `None` is the test-broker shape (see [Testing](./testing.md)). |
+| `client` | _required for production_ | `redis.asyncio.Redis` client instance; the caller owns its lifecycle (the broker does not close it). The constructor accepts `None`, but a broker without a client raises `IncorrectState` on the first operation; `None` is the test-broker shape (see [Testing](./testing.md)). |
 | `timeline_key` | `timers_timeline` | Sorted set key prefix; each topic uses `{timeline_key}:{topic}` |
 | `payloads_key` | `timers_payloads` | Hash key prefix; each topic uses `{payloads_key}:{topic}` |
 | `start_timeout` | `3.0` | Seconds to wait for the subscriber's first Redis ping during startup |
 | `graceful_timeout` | `15.0` | Seconds to wait for in-flight timers on shutdown |
 
-`TimersBroker` does not call `.aclose()` on the supplied client — wrap it in
+`TimersBroker` does not call `.aclose()` on the supplied client. Wrap it in
 `async with Redis.from_url(...) as client:` (or your own `try/finally`) so the
 connection is released when the application stops.
 
 ## Timer IDs
 
-Each timer has a unique `timer_id`. If you don't provide one, a UUID is generated automatically. You can supply your own to make a timer idempotent — publishing the same `timer_id` twice will **overwrite the first** silently (no error, no warning). This makes retries of `publish()` safe, but two unrelated callers that pick the same ID will overwrite each other. Namespace your IDs (e.g., `f"invoice-{invoice_id}-due"`) to avoid accidental collisions.
+Each timer has a unique `timer_id`. If you don't provide one, a UUID is generated automatically. You can supply your own to make a timer idempotent: publishing the same `timer_id` twice will **overwrite the first** silently (no error, no warning). This makes retries of `publish()` safe, but two unrelated callers that pick the same ID will overwrite each other. Namespace your IDs (e.g., `f"invoice-{invoice_id}-due"`) to avoid accidental collisions.
 
 ```python
 await broker.publish(
@@ -105,7 +105,7 @@ await broker.publish(
 
 ## Past activation times fire immediately
 
-Both `activate_in=timedelta(seconds=-5)` and `activate_at=datetime.now(tz=UTC) - timedelta(seconds=5)` produce a timer scheduled in the past — the next subscriber poll picks it up and fires it immediately. No error is raised; this lets `activate_at` computations that take "marginally too long" still deliver instead of breaking. If you want strict scheduling, validate at the call site before publishing.
+Both `activate_in=timedelta(seconds=-5)` and `activate_at=datetime.now(tz=UTC) - timedelta(seconds=5)` produce a timer scheduled in the past, and the next subscriber poll picks it up and fires it immediately. No error is raised; this lets `activate_at` computations that take "marginally too long" still deliver instead of breaking. If you want strict scheduling, validate at the call site before publishing.
 
 ## Cancelling timers
 
@@ -129,7 +129,7 @@ Three broker methods let you inspect or bulk-cancel timers without poking Redis 
 | Method | Returns | Use for |
 |--------|---------|---------|
 | `await broker.has_pending(topic, timer_id)` | `bool` | "is timer X still scheduled?" |
-| `await broker.get_pending_timers(topic, before=None)` | `list[str]` | List pending IDs on *topic* — optionally filter to those due by *before* (a timezone-aware `datetime`) |
+| `await broker.get_pending_timers(topic, before=None)` | `list[str]` | List pending IDs on *topic*, optionally filtered to those due by *before* (a timezone-aware `datetime`) |
 | `await broker.cancel_all(topic)` | `int` | Cancel every timer on *topic*; returns the number removed |
 
 ```python
@@ -152,15 +152,15 @@ soon = await broker.get_pending_timers(
 removed = await broker.cancel_all("invoices")
 ```
 
-These methods only inspect/cancel pending timers on the topic — handlers that have already started running are unaffected.
+These methods only inspect/cancel pending timers on the topic. Handlers that have already started running are unaffected.
 
 ### Leased timers still appear as pending
 
-Timers that have been claimed by a worker and are currently being processed have their score pushed forward by `lease_ttl` seconds (the visibility-timeout pattern — see [How it works](../introduction/how-it-works.md)). They are *still* in the sorted set, so:
+Timers that have been claimed by a worker and are currently being processed have their score pushed forward by `lease_ttl` seconds (the visibility-timeout pattern; see [How it works](../introduction/how-it-works.md)). They are *still* in the sorted set, so:
 
 - `has_pending(topic, timer_id)` returns `True` while the handler is running.
 - `get_pending_timers(topic)` (no `before`) includes them.
-- `get_pending_timers(topic, before=datetime.now(tz=UTC))` excludes them — they are no longer due "by now" because their score is in the future.
+- `get_pending_timers(topic, before=datetime.now(tz=UTC))` excludes them: they are no longer due "by now" because their score is in the future.
 
 If you are polling `has_pending` to detect *"the timer fired and the handler finished"*, you will get false positives during the lease window. Pass `before=datetime.now(tz=UTC)` (or treat the timer as gone only after `has_pending` is `False`) to avoid this.
 
