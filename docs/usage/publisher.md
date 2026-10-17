@@ -42,14 +42,14 @@ The `publish()` method on a publisher accepts the parameters below and returns t
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `message` | — | The message body (any serializable value) |
-| `timer_id` | auto UUID | Unique ID for the timer — use for idempotency |
+| `timer_id` | auto UUID | Unique ID for the timer; use it for idempotency |
 | `activate_in` | `timedelta(0)` | Delay before delivery (fires immediately if 0) |
 | `activate_at` | `None` | Absolute timezone-aware datetime to fire at. Mutually exclusive with `activate_in` |
-| `correlation_id` | same as `timer_id` | Correlation ID for tracing — round-trips to the handler. Defaults to the resolved `timer_id` (which is itself an auto UUID when not supplied) |
-| `headers` | `None` | `dict[str, Any]` of headers — round-trips to the handler |
+| `correlation_id` | same as `timer_id` | Correlation ID for tracing, round-tripped to the handler. Defaults to the resolved `timer_id` (which is itself an auto UUID when not supplied) |
+| `headers` | `None` | `dict[str, Any]` of headers, round-tripped to the handler |
 
 !!! note "`correlation_id` defaults to `timer_id`"
-    If you omit `correlation_id`, it falls back to the resolved `timer_id` —
+    If you omit `correlation_id`, it falls back to the resolved `timer_id`,
     not a fresh UUID. When `timer_id` is also auto-generated, the two end up
     equal but each unique. When you supply your own `timer_id` (e.g.
     `"invoice-INV-001-due"`) for idempotent retries, omitting `correlation_id`
@@ -59,7 +59,7 @@ The `publish()` method on a publisher accepts the parameters below and returns t
 
 !!! note "Past activation times fire immediately"
     `activate_in=timedelta(seconds=-5)` and `activate_at` set in the past both
-    schedule the timer at a negative-relative score — the next subscriber poll
+    schedule the timer at a negative-relative score, and the next subscriber poll
     picks it up and fires it. No error is raised; this lets `activate_at`
     computations that take "marginally too long" still deliver. If you want
     strict scheduling, validate at the call site before publishing.
@@ -119,4 +119,4 @@ pending_now = await pub.fetch_redis_timers(datetime.now(tz=UTC))
 assert pending_now == []
 ```
 
-In `TestTimersBroker`, `fetch_redis_timers` always returns `[]` because messages are delivered immediately — there are no pending timers to inspect.
+In `TestTimersBroker`, `fetch_redis_timers` always returns `[]` because messages are delivered immediately, so there are no pending timers to inspect.

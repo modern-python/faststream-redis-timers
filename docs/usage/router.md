@@ -17,7 +17,7 @@ async def handle_invoice(invoice_id: str) -> None:
 
 ## How `prefix` works
 
-The `prefix` you pass to `TimersRouter` is concatenated to every topic registered via that router — both subscribers and publishers. Given:
+The `prefix` you pass to `TimersRouter` is concatenated to every topic registered via that router, both subscribers and publishers. Given:
 
 ```python
 router = TimersRouter(prefix="my-service:")
@@ -32,17 +32,17 @@ async def handle_invoice(invoice_id: str) -> None: ...
 - `timers_timeline:my-service:invoices`
 - `timers_payloads:my-service:invoices`
 
-This is the recommended way to isolate multiple services or environments that share one Redis instance — give each its own `TimersRouter` prefix and they will never collide on keys.
+This is the recommended way to isolate multiple services or environments that share one Redis instance: give each its own `TimersRouter` prefix and they will never collide on keys.
 
 ### Publishing to a prefixed router
 
-`broker.publish(...)` does **not** know about the router's prefix — it only applies the broker's own prefix (empty by default). To target a prefixed subscriber from `broker.publish`, pass the full topic:
+`broker.publish(...)` does **not** know about the router's prefix; it only applies the broker's own prefix (empty by default). To target a prefixed subscriber from `broker.publish`, pass the full topic:
 
 ```python
 await broker.publish("INV-001", topic="my-service:invoices", activate_in=...)
 ```
 
-Or define a publisher inside the same router and use it — the router's prefix is applied automatically:
+Or define a publisher inside the same router and use it. The router's prefix is applied automatically:
 
 ```python
 publisher = router.publisher("invoices")
@@ -100,4 +100,4 @@ You can configure polling behaviour per subscriber:
 async def handle_urgent(message: str) -> None: ...
 ```
 
-All `@broker.subscriber` options are accepted by `@router.subscriber` and `TimersRoute` — see the [subscriber page](./subscriber.md) for the full list.
+All `@broker.subscriber` options are accepted by `@router.subscriber` and `TimersRoute`; see the [subscriber page](./subscriber.md) for the full list.
