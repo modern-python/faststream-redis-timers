@@ -21,16 +21,26 @@ class TimerStreamMessage(StreamMessage["TimerMessage"]):
     (with its score pushed forward by `lease_ttl`) while the handler runs.
     `ack()` and `reject()` atomically remove it; `nack()` is a no-op so the
     lease expires and another worker re-claims the timer.
+
+    A timer whose payload cannot be parsed is removed and raises on `decode()`,
+    so the handler never runs.
     """
 
     def __init__(
         self,
         *args: typing.Any,
         _remove: "Callable[[], Awaitable[None]] | None" = None,
+        _discard_corrupt: "Callable[[], Awaitable[typing.NoReturn]] | None" = None,
         **kwargs: typing.Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._remove = _remove
+        self._discard_corrupt = _discard_corrupt
+
+    async def decode(self) -> typing.Any:
+        if self._discard_corrupt is not None:
+            await self._discard_corrupt()
+        return await super().decode()
 
     async def _commit(self) -> None:
         if self._remove is None:
