@@ -3,10 +3,12 @@ import json
 import logging
 import os
 import time
+import typing
 import uuid
 
 import pytest
 from faststream import Context
+from faststream.message import StreamMessage
 from redis.asyncio import Redis
 
 from faststream_redis_timers import TimersBroker
@@ -199,7 +201,7 @@ async def test_legacy_envelope_with_non_hex_body_is_removed_and_logged_once(
     seen: list[bytes] = []
 
     @broker.subscriber("topic")
-    async def handler(body: bytes) -> None:  # pragma: no cover - never invoked; the parser rejects the timer
+    async def handler(body: bytes) -> None:  # pragma: no cover - never invoked; the timer is corrupt
         seen.append(body)
 
     with caplog.at_level(logging.ERROR, logger=f"corrupt-{suffix}"):
@@ -212,3 +214,34 @@ async def test_legacy_envelope_with_non_hex_body_is_removed_and_logged_once(
     removals = [record for record in caplog.records if "removed" in record.getMessage()]
     assert len(removals) == 1
     assert "'old-timer'" in removals[0].getMessage()
+    assert not [record for record in caplog.records if record.levelno == logging.CRITICAL]
+
+
+async def test_corrupt_timer_never_reaches_handler_with_custom_decoder(redis_client: Redis) -> None:
+    suffix = uuid.uuid4().hex
+    broker = TimersBroker(
+        redis_client,
+        timeline_key=f"corrupt_dec_tl_{suffix}",
+        payloads_key=f"corrupt_dec_pl_{suffix}",
+    )
+    timeline_key = f"corrupt_dec_tl_{suffix}:topic"
+    payloads_key = f"corrupt_dec_pl_{suffix}:topic"
+
+    await redis_client.zadd(timeline_key, {"old-timer": time.time() - 1})
+    await redis_client.hset(payloads_key, "old-timer", b'{"b": "zz"}')
+
+    async def raw_body_decoder(message: StreamMessage[typing.Any]) -> bytes:  # pragma: no cover - never invoked
+        return message.body
+
+    seen: list[bytes] = []
+
+    @broker.subscriber("topic", decoder=raw_body_decoder)
+    async def handler(body: bytes) -> None:  # pragma: no cover - never invoked; the timer is corrupt
+        seen.append(body)
+
+    async with broker:
+        await asyncio.sleep(0.3)
+
+    assert seen == []
+    assert await redis_client.zscore(timeline_key, "old-timer") is None
+    assert not await redis_client.hexists(payloads_key, "old-timer")
