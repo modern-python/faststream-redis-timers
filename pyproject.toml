@@ -25,17 +25,9 @@ dependencies = [
     "faststream>=0.7.6,<0.8",
     # 5.0.1 is the first release with Redis.aclose, which the broker calls on teardown.
     "redis>=5.0.1",
-    # Not imported here: faststream pulls pydantic through fast-depends[pydantic], and pydantic-core
-    # ships no cp314 wheel before pydantic 2.12 and no cp315 wheel before 2.14, so the lowest
-    # declared combination has no installable pydantic on 3.14 or 3.15.
-    "pydantic>=2.12; python_version == '3.14'",
-    "pydantic>=2.14; python_version >= '3.15'",
     # 4.12.2, not 4.12.0: pydantic requires >=4.12.2 on 3.13+, and pinning 4.12.0 drags pydantic
     # back to a build whose pydantic-core has no cp313 wheel either.
     "typing-extensions>=4.12.2",
-    # pydantic 2.12 and 2.14, the 3.14 and 3.15 floors above, require >=4.14.1 and >=4.16.0.
-    "typing-extensions>=4.14.1; python_version == '3.14'",
-    "typing-extensions>=4.16.0; python_version >= '3.15'",
 ]
 
 [dependency-groups]
