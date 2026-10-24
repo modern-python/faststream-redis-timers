@@ -25,9 +25,6 @@ dependencies = [
     "faststream>=0.7.6,<0.8",
     # 5.0.1 is the first release with Redis.aclose, which the broker calls on teardown.
     "redis>=5.0.1",
-    # 4.12.2, not 4.12.0: pydantic requires >=4.12.2 on 3.13+, and pinning 4.12.0 drags pydantic
-    # back to a build whose pydantic-core has no cp313 wheel either.
-    "typing-extensions>=4.12.2",
 ]
 
 [dependency-groups]
