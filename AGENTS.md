@@ -15,6 +15,9 @@ a concept in code, a test name, or an issue title.
   interpreter (the CI matrix, or `just test` in docker), not just the no-Redis subset. An
   integration-only failure, such as a broker-shutdown hang that only bites under a specific
   interpreter's async timing, won't surface in the no-Redis subset alone.
+- `just test-dr` runs the Sentinel failover drills in `tests_dr/` (primary killed, primary
+  paused), each on a fresh cluster from `docker-compose.dr.yml`: a primary, a replica that Sentinel
+  promotes, and three sentinels. It needs the Docker socket, takes about a minute, and is not in CI.
 
 ## Workflow
 

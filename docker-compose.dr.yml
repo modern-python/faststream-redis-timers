@@ -1,0 +1,62 @@
+name: timers-dr
+
+x-sentinel: &sentinel
+  image: redis:8
+  entrypoint: ["sh", "/sentinel-entrypoint.sh"]
+  volumes:
+    - ./tests_dr/sentinel-entrypoint.sh:/sentinel-entrypoint.sh:ro
+  depends_on:
+    redis-replica:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD-SHELL", "redis-cli -p 26379 sentinel ckquorum mymaster | grep -q OK"]
+    interval: 1s
+    timeout: 3s
+    retries: 60
+
+services:
+  dr:
+    build:
+      context: .
+      dockerfile: ./tests_dr/Dockerfile
+    user: root
+    volumes:
+      - .:/code
+      - /code/.venv
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      sentinel-1:
+        condition: service_healthy
+      sentinel-2:
+        condition: service_healthy
+      sentinel-3:
+        condition: service_healthy
+    environment:
+      - SENTINELS=sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
+
+  redis-primary:
+    image: redis:8
+    container_name: timers-dr-primary
+    command: ["redis-server", "--replica-announce-ip", "redis-primary"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  redis-replica:
+    image: redis:8
+    container_name: timers-dr-replica
+    command: ["redis-server", "--replicaof", "redis-primary", "6379", "--replica-announce-ip", "redis-replica"]
+    depends_on:
+      redis-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli info replication | grep -q master_link_status:up"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  sentinel-1: *sentinel
+  sentinel-2: *sentinel
+  sentinel-3: *sentinel

@@ -70,7 +70,7 @@ isort.lines-after-imports = 2
 isort.no-lines-before = ["standard-library", "local-folder"]
 
 [tool.ruff.lint.extend-per-file-ignores]
-"tests/**" = [
+"{tests,tests_dr}/**" = [
     "S101", # allow asserts
     "PLR2004", # allow magic values
 ]
@@ -87,6 +87,9 @@ Documentation = "https://faststream-redis-timers.modern-python.org"
 Repository = "https://github.com/modern-python/faststream-redis-timers"
 Issues = "https://github.com/modern-python/faststream-redis-timers/issues"
 Changelog = "https://github.com/modern-python/faststream-redis-timers/releases"
+
+[tool.coverage.run]
+omit = ["tests_dr/*"]
 
 [tool.coverage.report]
 fail_under = 100
