@@ -18,6 +18,7 @@ def create_subscriber(  # noqa: PLR0913
     max_polling_interval: float = 5.0,
     max_concurrent: int = 5,
     lease_ttl: int = 30,
+    command_timeout: float | None = None,
     config: "TimersBrokerConfig",
     title_: str | None = None,
     description_: str | None = None,
@@ -29,6 +30,7 @@ def create_subscriber(  # noqa: PLR0913
         max_polling_interval=max_polling_interval,
         max_concurrent=max_concurrent,
         lease_ttl=lease_ttl,
+        command_timeout=command_timeout,
     )
     usecase_config = TimersSubscriberConfig(
         _outer_config=config,

@@ -69,6 +69,7 @@ Configure polling behaviour per subscriber:
 | `max_polling_interval` | `5.0` s | Cap for adaptive idle backoff (doubles per empty cycle, ±50% jitter applied before the cap) |
 | `max_concurrent` | `5` | Max handlers running in parallel; also caps fetch batch size per poll |
 | `lease_ttl` | `30` s | How long a worker holds the lease before another worker may re-claim |
+| `command_timeout` | `None` (`lease_ttl`) | Most time the subscriber waits on one Redis command (fetch, claim, ack) before dropping the connection and reconnecting. Must be > 0 and <= `lease_ttl` |
 
 ```python
 @broker.subscriber(

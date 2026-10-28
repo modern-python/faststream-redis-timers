@@ -135,7 +135,8 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
             return -1
 
         now = time.time()
-        timer_ids: list[str] = await self._outer_config.store.due(self._config.full_topic, now, free)
+        with anyio.fail_after(self._config.timer_sub.effective_command_timeout):
+            timer_ids: list[str] = await self._outer_config.store.due(self._config.full_topic, now, free)
         if not timer_ids:
             return 0
 
@@ -154,9 +155,10 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
         try:
             async with limiter:
                 now = time.time()
-                raw_payload: bytes | None = await self._outer_config.store.claim(
-                    self._config.full_topic, timer_id, now, lease_ttl
-                )
+                with anyio.fail_after(self._config.timer_sub.effective_command_timeout):
+                    raw_payload: bytes | None = await self._outer_config.store.claim(
+                        self._config.full_topic, timer_id, now, lease_ttl
+                    )
                 if raw_payload is None:
                     self._log(
                         log_level=logging.DEBUG,

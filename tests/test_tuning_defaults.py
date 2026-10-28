@@ -12,6 +12,7 @@ PUBLISHED_DEFAULTS: typing.Final = {
     "max_polling_interval": 5.0,
     "max_concurrent": 5,
     "lease_ttl": 30,
+    "command_timeout": None,
 }
 
 DECLARATION_SITES: typing.Final = (
@@ -28,7 +29,7 @@ def _declared_defaults(site: typing.Any) -> dict[str, typing.Any]:
 
 
 def test_every_declaration_of_a_subscriber_tuning_knob_carries_the_published_default() -> None:
-    """INVARIANT: the four poll-loop knobs default the same at every site that declares them.
+    """INVARIANT: the subscriber tuning knobs default the same at every site that declares them.
 
     Broken by adding a knob, or retuning one, at fewer than all four sites. Each of
     ``TimerSub``, ``create_subscriber``, ``TimersRegistrator.subscriber`` and ``TimersRoute``
