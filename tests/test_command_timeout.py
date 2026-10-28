@@ -74,23 +74,20 @@ async def proxied_client(proxy: _FreezableProxy, redis_client: Redis) -> AsyncIt
             await client.aclose()  # ty: ignore[unresolved-attribute]
 
 
-@contextlib.asynccontextmanager
-async def _side_publisher(redis_client: Redis, keys: dict[str, str]) -> AsyncIterator[TimersBroker]:
-    publisher = TimersBroker(redis_client, **keys)
-    async with publisher:
-        yield publisher
-
-
-def _keys() -> dict[str, str]:
+def _brokers(proxied_client: Redis, redis_client: Redis) -> tuple[TimersBroker, TimersBroker]:
+    """Return a broker on the proxied client and a publisher on a direct one, sharing keys."""
     suffix = uuid.uuid4().hex
-    return {"timeline_key": f"ct_tl_{suffix}", "payloads_key": f"ct_pl_{suffix}"}
+    timeline_key, payloads_key = f"ct_tl_{suffix}", f"ct_pl_{suffix}"
+    return (
+        TimersBroker(proxied_client, timeline_key=timeline_key, payloads_key=payloads_key),
+        TimersBroker(redis_client, timeline_key=timeline_key, payloads_key=payloads_key),
+    )
 
 
 async def test_a_fetch_hung_on_a_silent_connection_is_abandoned(
     proxy: _FreezableProxy, proxied_client: Redis, redis_client: Redis
 ) -> None:
-    keys = _keys()
-    broker = TimersBroker(proxied_client, **keys)
+    broker, publisher = _brokers(proxied_client, redis_client)
     seen: list[str] = []
     delivered: dict[str, asyncio.Event] = {"before": asyncio.Event(), "after": asyncio.Event()}
 
@@ -99,7 +96,7 @@ async def test_a_fetch_hung_on_a_silent_connection_is_abandoned(
         seen.append(body)
         delivered[body].set()
 
-    async with broker, _side_publisher(redis_client, keys) as publisher:
+    async with broker, publisher:
         await publisher.publish("before", topic="topic")
         await asyncio.wait_for(delivered["before"].wait(), timeout=5)
         proxy.freeze()
@@ -111,8 +108,7 @@ async def test_a_fetch_hung_on_a_silent_connection_is_abandoned(
 async def test_an_ack_hung_on_a_silent_connection_frees_its_handler_slot(
     proxy: _FreezableProxy, proxied_client: Redis, redis_client: Redis
 ) -> None:
-    keys = _keys()
-    broker = TimersBroker(proxied_client, **keys)
+    broker, publisher = _brokers(proxied_client, redis_client)
     entered = asyncio.Event()
     release = asyncio.Event()
     after = asyncio.Event()
@@ -125,7 +121,7 @@ async def test_an_ack_hung_on_a_silent_connection_frees_its_handler_slot(
         entered.set()
         await release.wait()
 
-    async with broker, _side_publisher(redis_client, keys) as publisher:
+    async with broker, publisher:
         await publisher.publish("before", topic="topic")
         await asyncio.wait_for(entered.wait(), timeout=5)
         proxy.freeze()
