@@ -148,6 +148,10 @@ Per-subscriber knobs (passed to `@broker.subscriber("topic", ...)`):
 - `max_concurrent` (default `5`): maximum number of handlers running in
   parallel per subscriber. Also caps the fetch batch size per poll cycle.
   Handlers must be safe under concurrency in addition to being idempotent.
+- `command_timeout` (default `None`, meaning `lease_ttl`): the most time the
+  subscriber waits on a single Redis command (fetch, claim, ack). When a primary
+  stops answering without closing its connections, the command fails after this
+  long and the poll loop reconnects. Must be greater than 0 and at most `lease_ttl`.
 
 ## Failure modes
 

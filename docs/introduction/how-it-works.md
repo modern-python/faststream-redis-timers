@@ -67,6 +67,7 @@ The default ack policy is `NACK_ON_ERROR`: the timer is acknowledged on success,
 | `max_polling_interval` | `5.0` s | Ceiling for the adaptive idle backoff: `polling_interval` doubles up to this value on consecutive empty polls. Jitter is applied before the cap, so worst-case delivery latency on a previously-idle topic is `max_polling_interval` |
 | `max_concurrent` | `5` | Max handlers running concurrently per subscriber; also bounds fetch batch size |
 | `lease_ttl` | `30` s | How long a worker holds the lease before another worker may re-claim. Set to ~3–5× the P99 handler runtime: lower values speed up recovery from worker death, higher values tolerate handler GC pauses and clock skew |
+| `command_timeout` | `None` (`lease_ttl`) | Most time the subscriber waits on one Redis command (fetch, claim, ack). A primary that goes silent without closing its connections otherwise stalls the subscriber; redis-py before 8.0 sets no socket timeout by default. Must be > 0 and <= `lease_ttl` |
 
 ## Operational requirements
 

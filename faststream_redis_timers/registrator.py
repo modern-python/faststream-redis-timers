@@ -24,6 +24,7 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
         max_polling_interval: float = 5.0,
         max_concurrent: int = 5,
         lease_ttl: int = 30,
+        command_timeout: float | None = None,
         dependencies: Sequence[Dependant] = (),
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
@@ -37,6 +38,7 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
             max_polling_interval=max_polling_interval,
             max_concurrent=max_concurrent,
             lease_ttl=lease_ttl,
+            command_timeout=command_timeout,
             config=self.config,  # ty: ignore[invalid-argument-type]
             title_=title_,
             description_=description_,
