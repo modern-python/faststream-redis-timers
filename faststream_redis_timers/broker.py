@@ -1,4 +1,5 @@
 import logging
+import sys
 import typing
 from collections.abc import Iterable, Sequence
 from datetime import datetime, timedelta
@@ -66,7 +67,6 @@ def _spec_url(client: "RedisClient | None", timeline_key: str) -> list[str]:
 
 
 class TimersParamsStorage(DefaultLoggerStorage):
-    __max_msg_id_ln = -1
     _max_channel_name = 7
 
     def register_subscriber(self, params: dict[str, typing.Any]) -> None:
@@ -78,13 +78,8 @@ class TimersParamsStorage(DefaultLoggerStorage):
         logger = get_broker_logger(
             name="timers",
             default_context={"channel": "", "message_id": ""},
-            message_id_ln=self.__max_msg_id_ln,
-            fmt=(
-                "%(asctime)s %(levelname)-8s - "
-                f"%(channel)-{self._max_channel_name}s | "
-                f"%(message_id)-{self.__max_msg_id_ln}s "
-                "- %(message)s"
-            ),
+            message_id_ln=sys.maxsize,
+            fmt=(f"%(asctime)s %(levelname)-8s - %(channel)-{self._max_channel_name}s | %(message_id)s - %(message)s"),
             context=context,
             log_level=self.logger_log_level,
         )
