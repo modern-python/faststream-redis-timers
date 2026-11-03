@@ -91,3 +91,6 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/modern-python/faststream-redis-timers
       name: GitHub
+
+plugins:
+  - search
