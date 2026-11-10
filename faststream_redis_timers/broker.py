@@ -104,11 +104,11 @@ class TimersBroker(
     brokers; making the broker close it would break that pattern.
     """
 
-    _subscribers: WeakSet[TimersSubscriber]  # ty: ignore[invalid-attribute-override]
+    _subscribers: WeakSet[TimersSubscriber]  # ty: ignore[incompatible-attribute-override]
 
     @property
     @override
-    def subscribers(self) -> list[TimersSubscriber]:  # ty: ignore[invalid-property-type-override]
+    def subscribers(self) -> list[TimersSubscriber]:  # ty: ignore[incompatible-property-override]
         return typing.cast("list[TimersSubscriber]", super().subscribers)
 
     def __init__(  # noqa: PLR0913

@@ -169,5 +169,5 @@ async def test_two_brokers_same_keys_deliver_once(redis_client: Redis) -> None:
         await asyncio.wait_for(event.wait(), timeout=5.0)
         await asyncio.sleep(0.3)  # give the second broker a chance to double-deliver
 
-    await client_b.aclose()  # ty: ignore[unresolved-attribute]
+    await client_b.aclose()  # ty: ignore[missing-attribute]
     assert received == ["once"]

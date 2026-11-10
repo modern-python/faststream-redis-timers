@@ -68,7 +68,7 @@ async def _wait_sentinels_see_replica() -> None:
                 assert time.monotonic() < deadline, f"{host} never discovered the replica"
                 await asyncio.sleep(0.5)
         finally:
-            await sentinel.aclose()  # ty: ignore[unresolved-attribute]
+            await sentinel.aclose()  # ty: ignore[missing-attribute]
 
 
 async def _wait_failed_over(deadline: float) -> None:
@@ -77,7 +77,7 @@ async def _wait_failed_over(deadline: float) -> None:
         try:
             address = await sentinel_client.sentinel_get_master_addr_by_name(SERVICE)
         finally:
-            await sentinel_client.aclose()  # ty: ignore[unresolved-attribute]
+            await sentinel_client.aclose()  # ty: ignore[missing-attribute]
         if address and address[0] != PRIMARY_HOST:
             return
         assert time.monotonic() < deadline, "sentinels never promoted the replica"
@@ -152,4 +152,4 @@ async def test_timers_survive_failover(fail_primary: Callable[[], Awaitable[None
         f"\npromoted {promoted:.1f}s, publish recovered {publish_recovered:.1f}s, "
         f"subscriber recovered {subscriber_recovered:.1f}s, redeliveries {len(deliveries) - len(handled_at)}",
     )
-    await client.aclose()  # ty: ignore[unresolved-attribute]
+    await client.aclose()  # ty: ignore[missing-attribute]

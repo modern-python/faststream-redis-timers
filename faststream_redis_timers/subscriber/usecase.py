@@ -55,7 +55,7 @@ class TimersSubscriberSpecification(SubscriberSpecification["TimersBrokerConfig"
 
 
 class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
-    _outer_config: "TimersBrokerConfig"  # ty: ignore[invalid-mutable-override]
+    _outer_config: "TimersBrokerConfig"  # ty: ignore[incompatible-mutable-override]
 
     def __init__(
         self,

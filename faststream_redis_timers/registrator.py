@@ -16,7 +16,7 @@ from faststream_redis_timers.subscriber.usecase import TimersSubscriber
 
 class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty: ignore[unresolved-reference]
     @override
-    def subscriber(  # ty: ignore[invalid-method-override]
+    def subscriber(  # ty: ignore[incompatible-method-override]
         self,
         topic: str,
         *,
@@ -63,7 +63,7 @@ class TimersRegistrator(Registrator[TimerMessage, "TimersBrokerConfig"]):  # ty:
         )
 
     @override
-    def publisher(  # ty: ignore[invalid-method-override]
+    def publisher(  # ty: ignore[incompatible-method-override]
         self,
         topic: str,
         *,
