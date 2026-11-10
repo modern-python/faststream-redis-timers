@@ -124,7 +124,7 @@ async def test_works_with_decode_responses_true() -> None:
     try:
         await client.ping()
     except Exception:  # noqa: BLE001  # pragma: no cover - runs only when Redis is unreachable
-        await client.aclose()  # ty: ignore[unresolved-attribute]
+        await client.aclose()  # ty: ignore[missing-attribute]
         return
 
     suffix = uuid.uuid4().hex
@@ -148,7 +148,7 @@ async def test_works_with_decode_responses_true() -> None:
             await broker.publish(payload, topic="topic", timer_id="3056")
             await asyncio.wait_for(event.wait(), timeout=5.0)
     finally:
-        await client.aclose()  # ty: ignore[unresolved-attribute]
+        await client.aclose()  # ty: ignore[missing-attribute]
 
     assert seen == [payload]
 

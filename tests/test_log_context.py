@@ -48,5 +48,5 @@ async def test_received_and_processed_logs_name_each_timer(redis_client: Redis) 
 
     assert sorted(handled) == sorted(timer_ids)
     for event in ("Received", "Processed"):
-        logged = Counter(r.message_id for r in collector.records if r.getMessage() == event)  # ty: ignore[unresolved-attribute]
+        logged = Counter(r.message_id for r in collector.records if r.getMessage() == event)  # ty: ignore[missing-attribute]
         assert logged == Counter(timer_ids), event

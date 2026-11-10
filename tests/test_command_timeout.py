@@ -71,7 +71,7 @@ async def proxied_client(proxy: _FreezableProxy, redis_client: Redis) -> AsyncIt
     yield client
     with contextlib.suppress(Exception):
         async with asyncio.timeout(1):
-            await client.aclose()  # ty: ignore[unresolved-attribute]
+            await client.aclose()  # ty: ignore[missing-attribute]
 
 
 def _brokers(proxied_client: Redis, redis_client: Redis) -> tuple[TimersBroker, TimersBroker]:
