@@ -189,6 +189,8 @@ broker = TimersBroker(
 - [PyPI](https://pypi.org/project/faststream-redis-timers)
 - [License](https://github.com/modern-python/faststream-redis-timers/blob/main/LICENSE)
 
+If this project saves you time, consider giving it a star on GitHub.
+
 ## Part of `modern-python`
 
 Browse the full list of templates and libraries in
