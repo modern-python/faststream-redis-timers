@@ -1,5 +1,6 @@
 import os
 import uuid
+from collections.abc import AsyncIterator
 
 import pytest
 from redis.asyncio import Redis
@@ -11,7 +12,7 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 
 @pytest.fixture
-async def redis_client() -> Redis:  # ty: ignore[invalid-return-type]
+async def redis_client() -> AsyncIterator[Redis]:
     client = Redis.from_url(REDIS_URL)
     try:
         await client.ping()
