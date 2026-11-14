@@ -83,6 +83,7 @@ async def schedule_reminder() -> None:
 | `client` | _required for production_ | `redis.asyncio.Redis` client instance; the caller owns its lifecycle (the broker does not close it). The constructor accepts `None`, but a broker without a client raises `IncorrectState` on the first operation; `None` is the test-broker shape (see [Testing](./testing.md)). |
 | `timeline_key` | `timers_timeline` | Sorted set key prefix; each topic uses `{timeline_key}:{topic}` |
 | `payloads_key` | `timers_payloads` | Hash key prefix; each topic uses `{payloads_key}:{topic}` |
+| `claims_key` | `None` | Optional ownership hash prefix; by default derived from the encoded timeline and payload key identities. An explicit prefix uses `{claims_key}:{topic}`. Keep namespaces distinct. |
 | `start_timeout` | `3.0` | Seconds to wait for the subscriber's first Redis ping during startup |
 | `graceful_timeout` | `15.0` | Seconds to wait for in-flight timers on shutdown |
 

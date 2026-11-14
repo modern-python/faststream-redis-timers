@@ -156,10 +156,8 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
             async with limiter:
                 now = time.time()
                 with anyio.fail_after(self._config.timer_sub.effective_command_timeout):
-                    raw_payload: bytes | None = await self._outer_config.store.claim(
-                        self._config.full_topic, timer_id, now, lease_ttl
-                    )
-                if raw_payload is None:
+                    claim = await self._outer_config.store.claim(self._config.full_topic, timer_id, now, lease_ttl)
+                if claim is None:
                     self._log(
                         log_level=logging.DEBUG,
                         message=f"Timer {timer_id!r} claim contested (already leased or canceled)",
@@ -169,7 +167,8 @@ class TimersSubscriber(TasksMixin, SubscriberUsecase[TimerMessage]):
                     type="timer",
                     channel=self._config.full_topic,
                     timer_id=timer_id,
-                    data=raw_payload,
+                    data=claim.payload,
+                    claim_token=claim.token,
                 )
                 self._log(log_level=logging.DEBUG, message=f"Timer {timer_id!r} delivered to handler")
                 await self.consume(msg)

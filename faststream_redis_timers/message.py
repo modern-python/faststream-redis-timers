@@ -12,6 +12,7 @@ class TimerMessage(typing.TypedDict):
     channel: str
     timer_id: str
     data: bytes
+    claim_token: typing.NotRequired[str]
 
 
 class TimerStreamMessage(StreamMessage["TimerMessage"]):
@@ -19,10 +20,10 @@ class TimerStreamMessage(StreamMessage["TimerMessage"]):
 
     Lease-based at-least-once delivery: the timer remains in the timeline
     (with its score pushed forward by `lease_ttl`) while the handler runs.
-    `ack()` and `reject()` atomically remove it; `nack()` is a no-op so the
+    `ack()` and `reject()` remove it only while this delivery owns the claim; `nack()` is a no-op so the
     lease expires and another worker re-claims the timer.
 
-    A timer whose payload cannot be parsed is removed and raises on `decode()`,
+    A delivery whose payload cannot be parsed conditionally commits and raises on `decode()`,
     so the handler never runs.
     """
 

@@ -6,7 +6,8 @@ from faststream.exceptions import RejectMessage
 from redis.asyncio import Redis
 
 from faststream_redis_timers import TimersBroker
-from faststream_redis_timers.store import _CLAIM_LUA
+from faststream_redis_timers.configs import ConnectionState
+from faststream_redis_timers.store import TimerStore
 
 
 async def test_handler_success_removes_timer(broker: TimersBroker, redis_client: Redis) -> None:
@@ -75,15 +76,17 @@ async def test_concurrent_claim_only_one_succeeds(redis_client: Redis) -> None:
     await redis_client.zadd(timeline_key, {"id-1": now - 1})
     await redis_client.hset(payloads_key, "id-1", b"payload")
 
-    async def claim() -> object:
-        return await redis_client.eval(_CLAIM_LUA, 2, timeline_key, payloads_key, "id-1", now, now + 30)
+    store = TimerStore(ConnectionState(redis_client), f"cc_tl_{suffix}", f"cc_pl_{suffix}")
+
+    async def claim():
+        return await store.claim("topic", "id-1", now, 30)
 
     a, b = await asyncio.gather(claim(), claim())
     results = [r for r in (a, b) if r is not None]
     assert len(results) == 1
-    assert results[0] == b"payload"
+    assert results[0].payload == b"payload"
 
-    await redis_client.delete(timeline_key, payloads_key)
+    await store.cancel_all("topic")
 
 
 async def test_lease_expiry_allows_re_pickup(redis_client: Redis) -> None:
@@ -95,15 +98,17 @@ async def test_lease_expiry_allows_re_pickup(redis_client: Redis) -> None:
     # Score is in the past — lease expired
     await redis_client.zadd(timeline_key, {"id-1": now - 5})
     await redis_client.hset(payloads_key, "id-1", b"payload")
-    result = await redis_client.eval(_CLAIM_LUA, 2, timeline_key, payloads_key, "id-1", now, now + 30)
-    assert result == b"payload"
+    store = TimerStore(ConnectionState(redis_client), f"le_tl_{suffix}", f"le_pl_{suffix}")
+    result = await store.claim("topic", "id-1", now, 30)
+    assert result is not None
+    assert result.payload == b"payload"
 
     # Score should now be in the future (lease pushed forward)
     score = await redis_client.zscore(timeline_key, "id-1")
     assert score is not None
     assert score > now
 
-    await redis_client.delete(timeline_key, payloads_key)
+    await store.cancel_all("topic")
 
 
 async def test_explicit_reject_drops_timer(broker: TimersBroker, redis_client: Redis) -> None:
@@ -135,7 +140,8 @@ async def test_orphan_zset_entry_is_cleaned_up(redis_client: Redis) -> None:
     now = time.time()
     await redis_client.zadd(timeline_key, {"ghost": now - 1})
 
-    result = await redis_client.eval(_CLAIM_LUA, 2, timeline_key, payloads_key, "ghost", now, now + 30)
+    store = TimerStore(ConnectionState(redis_client), f"orph_tl_{suffix}", f"orph_pl_{suffix}")
+    result = await store.claim("topic", "ghost", now, 30)
     assert result is None
     assert await redis_client.zscore(timeline_key, "ghost") is None
 

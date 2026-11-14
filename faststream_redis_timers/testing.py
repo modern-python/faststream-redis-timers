@@ -5,6 +5,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 from faststream._internal.testing.broker import TestBroker, change_producer
+from redis.asyncio import Redis
 
 from faststream_redis_timers.broker import TimersBroker
 from faststream_redis_timers.envelope import TimerMessageFormat
@@ -66,7 +67,7 @@ class TestTimersBroker(TestBroker[TimersBroker, TimersBroker], broker=TimersBrok
     def _patch_broker(self, broker: TimersBroker) -> "Generator[None]":
         # Test-broker contract: messages deliver immediately, so there are
         # never any pending timers. Stub the inspection paths to return that.
-        mock_client = AsyncMock()
+        mock_client = AsyncMock(connection_pool=Redis().connection_pool)
         mock_client.zrangebyscore.return_value = []  # get_pending_timers -> []
         mock_client.zscore.return_value = None  # has_pending -> False
         # cancel_all uses `async with client.pipeline(...) as pipe`. AsyncMock's

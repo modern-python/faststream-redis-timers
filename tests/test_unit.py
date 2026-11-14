@@ -13,6 +13,7 @@ from faststream.exceptions import IncorrectState
 from faststream.specification import AsyncAPI
 from redis.asyncio import Redis
 from redis.asyncio.cluster import RedisCluster
+from redis.client import NEVER_DECODE
 from redis.exceptions import NoScriptError
 
 from faststream_redis_timers import TestTimersBroker, TimersBroker
@@ -28,6 +29,10 @@ from faststream_redis_timers.subscriber.schedule import (
     PollSchedule,
     _default_jitter,
 )
+
+
+def _redis_client() -> AsyncMock:
+    return AsyncMock(connection_pool=Redis().connection_pool)
 
 
 # --- AsyncAPI try_it_out registry ---
@@ -54,7 +59,7 @@ def test_connection_state_client_not_set_raises() -> None:
 
 
 async def test_connection_state_connect_returns_client() -> None:
-    client = AsyncMock()
+    client = _redis_client()
     state = ConnectionState(client)
     result = await state.connect()
     assert result is client
@@ -69,7 +74,7 @@ async def test_connection_state_disconnect_is_noop() -> None:
 
 
 async def test_broker_config_connect_and_disconnect() -> None:
-    client = AsyncMock()
+    client = _redis_client()
     broker = TimersBroker(client)
     config = broker.config.broker_config
     await config.connect()
@@ -91,28 +96,28 @@ async def test_broker_ping_without_client_returns_false() -> None:
 
 
 async def test_broker_ping_when_redis_raises_returns_false() -> None:
-    client = AsyncMock()
+    client = _redis_client()
     client.ping.side_effect = ConnectionError("timeout")
     broker = TimersBroker(client)
     assert await broker.ping() is False
 
 
 async def test_broker_ping_when_redis_returns_false() -> None:
-    client = AsyncMock()
+    client = _redis_client()
     client.ping.return_value = False
     broker = TimersBroker(client)
     assert await broker.ping() is False
 
 
 async def test_broker_ping_success() -> None:
-    client = AsyncMock()
+    client = _redis_client()
     client.ping.return_value = True
     broker = TimersBroker(client)
     assert await broker.ping() is True
 
 
 async def test_broker_ping_dead_task_returns_false() -> None:
-    client = AsyncMock()
+    client = _redis_client()
     client.ping.return_value = True
     broker = TimersBroker(client)
     sub = broker.subscriber("topic")
@@ -123,7 +128,7 @@ async def test_broker_ping_dead_task_returns_false() -> None:
 
 
 async def test_broker_ping_live_task_returns_true() -> None:
-    client = AsyncMock()
+    client = _redis_client()
     client.ping.return_value = True
     broker = TimersBroker(client)
     sub = broker.subscriber("topic")
@@ -350,7 +355,7 @@ def test_timers_route_and_route_publisher() -> None:
 
 
 async def test_publisher_fetch_redis_timers_returns_matching() -> None:
-    client = AsyncMock()
+    client = _redis_client()
     client.zrangebyscore.return_value = [b"timer-1", b"timer-2"]
     broker = TimersBroker(client)
     pub = broker.publisher("my-topic")
@@ -363,7 +368,7 @@ async def test_publisher_fetch_redis_timers_returns_matching() -> None:
 
 
 async def test_publisher_fetch_redis_timers_empty() -> None:
-    client = AsyncMock()
+    client = _redis_client()
     client.zrangebyscore.return_value = []
     broker = TimersBroker(client)
     pub = broker.publisher("my-topic")
@@ -375,7 +380,7 @@ async def test_publisher_fetch_redis_timers_empty() -> None:
 
 
 async def test_publisher_fetch_redis_timers_uses_correct_key() -> None:
-    client = AsyncMock()
+    client = _redis_client()
     client.zrangebyscore.return_value = []
     broker = TimersBroker(client, timeline_key="custom_timeline")
     pub = broker.publisher("orders")
@@ -391,12 +396,12 @@ async def test_publisher_fetch_redis_timers_uses_correct_key() -> None:
 
 
 def test_broker_start_timeout_propagates_to_config() -> None:
-    broker = TimersBroker(AsyncMock(), start_timeout=7.5)
+    broker = TimersBroker(_redis_client(), start_timeout=7.5)
     assert broker.config.broker_config.start_timeout == 7.5
 
 
 def test_broker_start_timeout_default_is_three_seconds() -> None:
-    broker = TimersBroker(AsyncMock())
+    broker = TimersBroker(_redis_client())
     assert broker.config.broker_config.start_timeout == 3.0
 
 
@@ -404,7 +409,7 @@ def test_broker_start_timeout_default_is_three_seconds() -> None:
 
 
 def test_duplicate_subscriber_warns() -> None:
-    broker = TimersBroker(AsyncMock())
+    broker = TimersBroker(_redis_client())
 
     @broker.subscriber("same")
     async def first(body: str) -> None: ...
@@ -420,7 +425,7 @@ def test_duplicate_subscriber_warns() -> None:
 
 async def test_consume_sets_start_signal_when_ping_returns_false() -> None:
     """If client.ping() returns falsy, start_signal is set by the finally branch on first poll."""
-    client = AsyncMock()
+    client = _redis_client()
     client.ping.return_value = False
     client.zrangebyscore.return_value = []
     broker = TimersBroker(client, start_timeout=2.0)
@@ -436,31 +441,31 @@ async def test_consume_sets_start_signal_when_ping_returns_false() -> None:
 
 
 async def test_publish_rejects_empty_topic() -> None:
-    broker = TimersBroker(AsyncMock())
+    broker = TimersBroker(_redis_client())
     with pytest.raises(ValueError, match="topic must be a non-empty string"):
         await broker.publish("msg", topic="")
 
 
 async def test_cancel_timer_rejects_empty_topic() -> None:
-    broker = TimersBroker(AsyncMock())
+    broker = TimersBroker(_redis_client())
     with pytest.raises(ValueError, match="topic must be a non-empty string"):
         await broker.cancel_timer("", "id")
 
 
 async def test_has_pending_rejects_empty_topic() -> None:
-    broker = TimersBroker(AsyncMock())
+    broker = TimersBroker(_redis_client())
     with pytest.raises(ValueError, match="topic must be a non-empty string"):
         await broker.has_pending("", "id")
 
 
 async def test_get_pending_timers_rejects_empty_topic() -> None:
-    broker = TimersBroker(AsyncMock())
+    broker = TimersBroker(_redis_client())
     with pytest.raises(ValueError, match="topic must be a non-empty string"):
         await broker.get_pending_timers("")
 
 
 async def test_cancel_all_rejects_empty_topic() -> None:
-    broker = TimersBroker(AsyncMock())
+    broker = TimersBroker(_redis_client())
     with pytest.raises(ValueError, match="topic must be a non-empty string"):
         await broker.cancel_all("")
 
@@ -470,9 +475,9 @@ async def test_cancel_all_rejects_empty_topic() -> None:
 
 async def test_consume_logs_get_msgs_error_with_repr() -> None:
     """A Redis error during _get_msgs is logged at ERROR with `{e!r}` so the type and msg survive Sentry truncation."""
-    client = AsyncMock()
+    client = _redis_client()
     client.ping.return_value = True
-    client.zrangebyscore.side_effect = ConnectionError("redis down")
+    client.execute_command.side_effect = ConnectionError("redis down")
     broker = TimersBroker(client, start_timeout=2.0)
 
     @broker.subscriber("topic", polling_interval=0.05)
@@ -495,7 +500,7 @@ async def test_consume_logs_get_msgs_error_with_repr() -> None:
 
 async def test_claim_and_consume_logs_unhandled_error_with_repr() -> None:
     """An unhandled error inside the limiter block is logged with `{timer_id!r}` and `{e!r}`."""
-    client = AsyncMock()
+    client = _redis_client()
     broker = TimersBroker(client)
     sub = broker.subscriber("topic")
     await broker.connect()
@@ -521,7 +526,7 @@ async def test_claim_and_consume_logs_unhandled_error_with_repr() -> None:
 
 
 async def test_eval_cached_falls_back_on_noscript() -> None:
-    client = AsyncMock()
+    client = _redis_client()
     client.execute_command.side_effect = [NoScriptError("NOSCRIPT"), b"ok"]
     client.script_load.return_value = "abc123"
 
@@ -533,7 +538,7 @@ async def test_eval_cached_falls_back_on_noscript() -> None:
 
 
 def test_distinct_topics_do_not_warn() -> None:
-    broker = TimersBroker(AsyncMock())
+    broker = TimersBroker(_redis_client())
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
 
@@ -615,7 +620,7 @@ def test_timer_store_key_derivation() -> None:
 
 async def test_timer_store_schedule() -> None:
     """schedule() writes timer_id→activation_ts in ZADD and timer_id→payload in HSET via pipeline."""
-    client = AsyncMock()
+    client = _redis_client()
     pipe = MagicMock()
     pipe.__aenter__ = AsyncMock(return_value=pipe)
     pipe.__aexit__ = AsyncMock(return_value=None)
@@ -632,20 +637,23 @@ async def test_timer_store_schedule() -> None:
 
 async def test_timer_store_due_bytes_client() -> None:
     """due() decodes bytes IDs for a bytes-mode Redis client."""
-    client = AsyncMock()
-    client.zrangebyscore = AsyncMock(return_value=[b"timer-1", b"timer-2"])
+    client = _redis_client()
+    client.execute_command = AsyncMock(return_value=[b"timer-1", b"timer-2"])
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
     result = await store.due("topic", 1000.0, 10)
 
     assert result == ["timer-1", "timer-2"]
-    client.zrangebyscore.assert_awaited_once_with("tl:topic", "-inf", 1000.0, start=0, num=10)
+    client.execute_command.assert_awaited_once_with(
+        "ZRANGEBYSCORE", "tl:topic", "-inf", 1000.0, "LIMIT", 0, 10, **{NEVER_DECODE: []}
+    )
 
 
-async def test_timer_store_due_str_client() -> None:
-    """due() passes str IDs through unchanged for a str-mode Redis client."""
-    client = AsyncMock()
-    client.zrangebyscore = AsyncMock(return_value=["timer-1", "timer-2"])
+async def test_timer_store_due_decoding_client() -> None:
+    """due() requests raw IDs even when the client normally decodes replies."""
+    client = _redis_client()
+    client.connection_pool = Redis(decode_responses=True).connection_pool
+    client.execute_command = AsyncMock(return_value=[b"timer-1", b"timer-2"])
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
     result = await store.due("topic", 1000.0, 10)
@@ -655,8 +663,8 @@ async def test_timer_store_due_str_client() -> None:
 
 async def test_timer_store_due_empty() -> None:
     """due() returns an empty list when no timers are due."""
-    client = AsyncMock()
-    client.zrangebyscore = AsyncMock(return_value=[])
+    client = _redis_client()
+    client.execute_command = AsyncMock(return_value=[])
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
     result = await store.due("topic", 1000.0, 10)
@@ -667,8 +675,8 @@ async def test_timer_store_due_empty() -> None:
 async def test_timer_store_due_non_utf8_self_heal() -> None:
     """due() removes non-UTF-8 members via COMMIT_LUA and excludes them from the result."""
     bad_id = b"\xff\xfe-broken"
-    client = AsyncMock()
-    client.zrangebyscore = AsyncMock(return_value=[bad_id, b"good-id"])
+    client = _redis_client()
+    client.execute_command = AsyncMock(return_value=[bad_id, b"good-id"])
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
 
@@ -682,7 +690,7 @@ async def test_timer_store_due_non_utf8_self_heal() -> None:
 
 async def test_timer_store_claim_found() -> None:
     """claim() returns the payload bytes when the timer is successfully claimed."""
-    client = AsyncMock()
+    client = _redis_client()
     payload = b"timer-payload"
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
@@ -690,14 +698,16 @@ async def test_timer_store_claim_found() -> None:
     with patch("faststream_redis_timers.store._eval_cached", new=AsyncMock(return_value=payload)) as mock_eval:
         result = await store.claim("topic", "id-1", 1000.0, 30)
 
-    assert result == payload
+    assert result is not None
+    assert result.payload == payload
+    assert result.token
     # claim_score = now + lease_ttl = 1000.0 + 30 = 1030.0
     assert 1030.0 in mock_eval.call_args.args
 
 
 async def test_timer_store_claim_contested() -> None:
     """claim() returns None when the timer is already leased or canceled."""
-    client = AsyncMock()
+    client = _redis_client()
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
 
@@ -709,7 +719,7 @@ async def test_timer_store_claim_contested() -> None:
 
 async def test_timer_store_remove() -> None:
     """remove() calls COMMIT_LUA for both the timeline and payloads keys."""
-    client = AsyncMock()
+    client = _redis_client()
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
 
@@ -725,7 +735,7 @@ async def test_timer_store_remove() -> None:
 
 async def test_timer_store_pending_no_before() -> None:
     """pending() with no before= uses '+inf' as the score ceiling (all pending timers)."""
-    client = AsyncMock()
+    client = _redis_client()
     client.zrangebyscore = AsyncMock(return_value=["id-1", "id-2"])
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
@@ -737,7 +747,7 @@ async def test_timer_store_pending_no_before() -> None:
 
 async def test_timer_store_pending_with_before() -> None:
     """pending() with before=float restricts results to timers due by that timestamp."""
-    client = AsyncMock()
+    client = _redis_client()
     client.zrangebyscore = AsyncMock(return_value=[])
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
@@ -749,7 +759,7 @@ async def test_timer_store_pending_with_before() -> None:
 
 async def test_timer_store_pending_bytes_client() -> None:
     """pending() decodes bytes IDs for a bytes-mode Redis client."""
-    client = AsyncMock()
+    client = _redis_client()
     client.zrangebyscore = AsyncMock(return_value=[b"id-1", b"id-2"])
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
@@ -760,7 +770,7 @@ async def test_timer_store_pending_bytes_client() -> None:
 
 async def test_timer_store_is_pending_true() -> None:
     """is_pending() returns True when ZSCORE returns a score (timer exists)."""
-    client = AsyncMock()
+    client = _redis_client()
     client.zscore = AsyncMock(return_value=1000.0)
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
@@ -772,7 +782,7 @@ async def test_timer_store_is_pending_true() -> None:
 
 async def test_timer_store_is_pending_false() -> None:
     """is_pending() returns False when ZSCORE returns None (timer absent)."""
-    client = AsyncMock()
+    client = _redis_client()
     client.zscore = AsyncMock(return_value=None)
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
@@ -783,7 +793,7 @@ async def test_timer_store_is_pending_false() -> None:
 
 async def test_timer_store_cancel_all() -> None:
     """cancel_all() UNLINKs both keys and returns the pre-removal ZCARD count."""
-    client = AsyncMock()
+    client = _redis_client()
     pipe = MagicMock()
     pipe.__aenter__ = AsyncMock(return_value=pipe)
     pipe.__aexit__ = AsyncMock(return_value=None)
