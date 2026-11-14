@@ -8,7 +8,7 @@
 |-------------|------|---------|
 | `timers_timeline:{topic}` | Sorted set | Maps each `timer_id` to its activation Unix timestamp (score) |
 | `timers_payloads:{topic}` | Hash | Maps each `timer_id` to its serialized message body |
-| Binary ownership key (see below) | Hash | Maps each claimed `timer_id` to its current ownership token |
+| `timers_claims:{digest}` by default | Hash | Maps each claimed `timer_id` to its current ownership token |
 
 When you publish a timer for topic `invoices` with `timer_id` `abc-123`, the timer is written and any previous claim is invalidated atomically using a Redis pipeline:
 
@@ -61,6 +61,7 @@ The default ack policy is `NACK_ON_ERROR`: the timer is acknowledged on success,
 |-----------|---------|-------------|
 | `timeline_key` | `timers_timeline` | Prefix for sorted set keys (`{timeline_key}:{topic}`) |
 | `payloads_key` | `timers_payloads` | Prefix for hash keys (`{payloads_key}:{topic}`) |
+| `claims_key` | `None` | Optional ownership hash prefix (`{claims_key}:{topic}`); by default the key is derived from the timeline and payload keys |
 | `start_timeout` | `3.0` s | Max wait for the first Redis ping during startup |
 
 ### Per-subscriber (`@broker.subscriber("topic", ...)`)
@@ -73,9 +74,11 @@ The default ack policy is `NACK_ON_ERROR`: the timer is acknowledged on success,
 | `lease_ttl` | `30` s | How long a worker holds the lease before another worker may re-claim. Set to ~3–5× the P99 handler runtime: lower values speed up recovery from worker death, higher values tolerate handler GC pauses and clock skew |
 | `command_timeout` | `None` (`lease_ttl`) | Most time the subscriber waits on one Redis command (fetch, claim, ack). A primary that goes silent without closing its connections otherwise stalls the subscriber; redis-py before 8.0 sets no socket timeout by default. Must be > 0 and <= `lease_ttl` |
 
-The supplied Redis client must use UTF-8 encoding with `encoding_errors="strict"` (the redis-py defaults). UTF-8 codec aliases such as `UTF8` are accepted, and `decode_responses` may be either `True` or `False`. Incompatible encoders raise `ValueError` when the broker is constructed, before any Redis writes. This requirement prevents public string keys from entering the binary ownership namespace.
+Redis client encoding, encoding error handling, and `decode_responses` settings are preserved. Timer IDs use the client's encoder for storage and inspection; binary message envelopes remain raw bytes during claims.
 
-Ownership keys are the byte prefix `b"\xfffaststream-redis-timers:claims:"` followed by the UTF-8 bytes of the full timeline key (`{timeline_key}:{topic}`, including any topic prefix). The leading `0xff` byte makes this namespace disjoint from every public key derived from string configuration. Existing custom timeline and payload names remain valid, including names ending in `_claims`. Redis inspection tools must use byte-mode key enumeration for these binary keys; broker operations remain compatible with `decode_responses=True`.
+By default, ownership keys are `timers_claims:{digest}`. The digest is SHA-256 of the full timeline and payload key bytes as encoded by the client, each preceded by its eight-byte big-endian length. This gives independently configured stores separate ownership metadata, remains stable across restarts, and requires no reserved binary namespace. An explicit `claims_key` instead uses `{claims_key}:{topic}`, including any topic prefix.
+
+Timeline, payload, and ownership keys for a topic must be distinct after Redis encoding. Mutating operations reject overlapping keys with `ValueError` before issuing Redis commands. Use `claims_key` to select another namespace when needed. Across independently configured brokers, keep all key namespaces non-overlapping; workers sharing timers must use the same ownership configuration. Changing ownership configuration while workers are active is unsafe.
 
 ## Upgrading existing timers
 

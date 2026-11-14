@@ -1,4 +1,3 @@
-import codecs
 import typing
 from dataclasses import dataclass
 from typing import TypeAlias
@@ -21,11 +20,6 @@ RedisClient: TypeAlias = "Redis[bytes] | Redis[str]"
 
 class ConnectionState:
     def __init__(self, client: "RedisClient | None" = None) -> None:
-        if client is not None:
-            encoder = client.connection_pool.get_encoder()
-            if codecs.lookup(encoder.encoding).name != "utf-8" or encoder.encoding_errors != "strict":
-                msg = "TimersBroker requires UTF-8 Redis encoding with strict encoding errors."
-                raise ValueError(msg)
         self._client = client
 
     @property

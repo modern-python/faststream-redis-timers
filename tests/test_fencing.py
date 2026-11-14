@@ -103,7 +103,7 @@ async def test_claims_survive_store_restart_and_adopt_legacy_records(broker: Tim
     store = broker.config.broker_config.store
     tl = f"{store.timeline_key}:topic"
     pl = f"{store.payloads_key}:topic"
-    claims = b"\xfffaststream-redis-timers:claims:" + tl.encode()
+    claims = store._claims_key("topic")  # noqa: SLF001
     try:
         await redis_client.zadd(tl, {"K": 100, "orphan": 100})
         await redis_client.hset(pl, "K", b"legacy")
@@ -143,7 +143,7 @@ async def test_malformed_id_cleanup_preserves_newer_schedule(
     store = broker.config.broker_config.store
     tl = f"{store.timeline_key}:topic"
     pl = f"{store.payloads_key}:topic"
-    claims = b"\xfffaststream-redis-timers:claims:" + tl.encode()
+    claims = store._claims_key("topic")  # noqa: SLF001
     bad_id = b"\xff"
     original = redis_client.zrangebyscore
 
@@ -296,27 +296,49 @@ async def test_only_fenced_publishers_protect_replacements(
 
 
 @pytest.mark.parametrize(
-    ("encoding", "encoding_errors", "leading_character"),
-    [("latin-1", "strict", "\xff"), ("utf-8", "surrogateescape", "\udcff")],
+    "case",
+    [
+        ("latin-1", "strict", "\xff", "caf\xe9", "caf\xe9"),
+        ("utf-8", "surrogateescape", "\udcff", "id\udcff", "id\udcff"),
+        ("ascii", "replace", "?", "caf\xe9", "caf?"),
+    ],
 )
-async def test_incompatible_encoder_is_rejected_before_writing(
+@pytest.mark.parametrize("decode_responses", [False, True])
+async def test_client_encodings_preserve_fenced_timers(
     broker: TimersBroker,
-    redis_client: Redis,
-    encoding: str,
-    encoding_errors: str,
-    leading_character: str,
+    case: tuple[str, str, str, str, str],
+    decode_responses: bool,
 ) -> None:
+    encoding, encoding_errors, leading_character, timer_id, stored_id = case
     timeline = broker.config.broker_config.store.timeline_key
     payloads = leading_character + "faststream-redis-timers:claims:" + timeline
-    client = Redis.from_url(REDIS_URL, encoding=encoding, encoding_errors=encoding_errors)
+    client = Redis.from_url(
+        REDIS_URL,
+        encoding=encoding,
+        encoding_errors=encoding_errors,
+        decode_responses=decode_responses,
+    )
     try:
         await client.ping()
-        with pytest.raises(ValueError, match=r"UTF-8.*strict"):
-            TimersBroker(client, timeline_key=timeline, payloads_key=payloads)
-        assert await redis_client.exists(f"{timeline}:topic") == 0
-        assert await redis_client.exists(b"\xfffaststream-redis-timers:claims:" + f"{timeline}:topic".encode()) == 0
+        configured = TimersBroker(client, timeline_key=timeline, payloads_key=payloads)
+        store = configured.config.broker_config.store
+        await store.schedule("topic", timer_id, b"\x00\xfforiginal", 100)
+        assert await store.due("topic", 100, 1) == [stored_id]
+        assert await store.pending("topic") == [stored_id]
+        owner = await store.claim("topic", timer_id, 100, 10)
+        assert owner is not None
+        assert owner.payload == b"\x00\xfforiginal"
+        await store.schedule("topic", timer_id, b"\xffreplacement", 200)
+        await store.commit("topic", timer_id, owner.token)
+        assert await store.is_pending("topic", timer_id)
+        replacement = await store.claim("topic", timer_id, 200, 10)
+        assert replacement is not None
+        assert replacement.payload == b"\xffreplacement"
+        await store.commit("topic", timer_id, replacement.token)
+        assert not await store.is_pending("topic", timer_id)
+        await store.cancel_all("topic")
     finally:
-        await client.delete(f"{timeline}:topic", b"\xfffaststream-redis-timers:claims:" + f"{timeline}:topic".encode())
+        await client.delete(f"{timeline}:topic", f"{payloads}:topic")
         await client.aclose()  # ty: ignore[missing-attribute]
 
 
@@ -324,7 +346,7 @@ async def test_orphan_cleanup_removes_existing_ownership(broker: TimersBroker, r
     store = broker.config.broker_config.store
     tl = f"{store.timeline_key}:topic"
     pl = f"{store.payloads_key}:topic"
-    claims = b"\xfffaststream-redis-timers:claims:" + tl.encode()
+    claims = store._claims_key("topic")  # noqa: SLF001
     try:
         await store.schedule("topic", "K", b"payload", 100)
         owner = await store.claim("topic", "K", 100, 10)
@@ -363,3 +385,66 @@ async def test_utf8_encoder_aliases_support_fenced_binary_payloads(
     finally:
         await original.cancel_all("topic")
         await client.aclose()  # ty: ignore[missing-attribute]
+
+
+@pytest.mark.parametrize("operation", ["schedule", "claim", "commit", "remove", "cancel_all"])
+@pytest.mark.parametrize("collision", ["timeline", "payloads", "encoded_payloads"])
+async def test_explicit_claim_namespace_collision_preserves_existing_data(
+    broker: TimersBroker,
+    redis_client: Redis,
+    operation: str,
+    collision: str,
+) -> None:
+    original = broker.config.broker_config.store
+    timeline = original.timeline_key
+    payloads = original.payloads_key
+    claims = timeline if collision == "timeline" else payloads
+    client = Redis.from_url(REDIS_URL, encoding="ascii", encoding_errors="ignore")
+    try:
+        await original.schedule("topic", "K", b"existing", 100)
+        configured = TimersBroker(
+            client,
+            timeline_key=timeline,
+            payloads_key=payloads,
+            claims_key=claims + ("\u20ac" if collision == "encoded_payloads" else ""),
+        )
+        store = configured.config.broker_config.store
+        args = {
+            "schedule": ("topic", "K", b"replacement", 200),
+            "claim": ("topic", "K", 100, 10),
+            "commit": ("topic", "K", "old-token"),
+            "remove": ("topic", "K"),
+            "cancel_all": ("topic",),
+        }
+        with pytest.raises(ValueError, match="distinct after Redis encoding"):
+            await getattr(store, operation)(*args[operation])
+        assert await redis_client.zscore(f"{timeline}:topic", "K") == 100
+        assert await redis_client.hget(f"{payloads}:topic", "K") == b"existing"
+    finally:
+        await original.cancel_all("topic")
+        await client.aclose()  # ty: ignore[missing-attribute]
+
+
+async def test_explicit_claim_namespace_is_used_and_cleaned(broker: TimersBroker, redis_client: Redis) -> None:
+    original = broker.config.broker_config.store
+    prefix = f"{original.timeline_key}_ownership"
+    configured = TimersBroker(
+        redis_client,
+        timeline_key=original.timeline_key,
+        payloads_key=original.payloads_key,
+        claims_key=prefix,
+    )
+    store = configured.config.broker_config.store
+    try:
+        await store.schedule("app:topic", "K", b"payload", 100)
+        owner = await store.claim("app:topic", "K", 100, 10)
+        assert owner is not None
+        assert await redis_client.hget(f"{prefix}:app:topic", "K") == owner.token.encode()
+        await store.commit("app:topic", "K", owner.token)
+        assert await redis_client.exists(f"{prefix}:app:topic") == 0
+        await store.schedule("app:topic", "K", b"payload", 100)
+        assert await store.claim("app:topic", "K", 100, 10) is not None
+        assert await store.cancel_all("app:topic") == 1
+        assert await redis_client.exists(f"{prefix}:app:topic") == 0
+    finally:
+        await store.cancel_all("app:topic")

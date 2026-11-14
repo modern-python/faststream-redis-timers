@@ -117,6 +117,7 @@ class TimersBroker(
         *,
         timeline_key: str = "timers_timeline",
         payloads_key: str = "timers_payloads",
+        claims_key: str | None = None,
         start_timeout: float = 3.0,
         decoder: CustomCallable | None = None,
         parser: CustomCallable | None = None,
@@ -142,7 +143,7 @@ class TimersBroker(
             raise TypeError(msg)
         fd_config = FastDependsConfig(use_fastdepends=apply_types)
         connection = ConnectionState(client)
-        store = TimerStore(connection, timeline_key, payloads_key)
+        store = TimerStore(connection, timeline_key, payloads_key, claims_key)
         broker_config = TimersBrokerConfig(
             connection=connection,
             start_timeout=start_timeout,
