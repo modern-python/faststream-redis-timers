@@ -20,12 +20,13 @@ class TimerParser:
 
     async def parse_message(self, msg: "TimerMessage") -> TimerStreamMessage:
         timer_id = msg["timer_id"]
+        token = msg.get("claim_token")
         discard_corrupt = None
         try:
             body, headers = TimerMessageFormat.parse(msg["data"])
         except ValueError as e:
             body, headers = msg["data"], {}
-            discard_corrupt = partial(self._discard_corrupt, msg, e)
+            discard_corrupt = partial(self._discard_corrupt, timer_id, token, len(msg["data"]), e)
         return TimerStreamMessage(
             raw_message=msg,
             body=body,
@@ -34,21 +35,23 @@ class TimerParser:
             message_id=timer_id,
             correlation_id=headers.get("correlation_id", timer_id),
             reply_to=headers.get("reply_to", ""),
-            _remove=partial(self._remove, timer_id),
+            _remove=partial(self._remove, timer_id, token),
             _discard_corrupt=discard_corrupt,
         )
 
-    async def _remove(self, timer_id: str) -> None:
+    async def _remove(self, timer_id: str, token: str | None) -> None:
+        if token is None:
+            return
         store = self._config._outer_config.store  # noqa: SLF001
         with anyio.fail_after(self._config.timer_sub.effective_command_timeout):
-            await store.remove(self._config.full_topic, timer_id)
+            await store.commit(self._config.full_topic, timer_id, token)
 
-    async def _discard_corrupt(self, msg: "TimerMessage", error: ValueError) -> typing.NoReturn:
+    async def _discard_corrupt(self, timer_id: str, token: str | None, size: int, error: ValueError) -> typing.NoReturn:
         outer_config = self._config._outer_config  # noqa: SLF001
-        await self._remove(msg["timer_id"])
+        await self._remove(timer_id, token)
         outer_config.logger.log(
-            f"Timer {msg['timer_id']!r} on {self._config.full_topic!r} removed: "
-            f"its {len(msg['data'])}-byte payload cannot be parsed",
+            f"Timer {timer_id!r} on {self._config.full_topic!r} removed if still owned: "
+            f"its {size}-byte payload cannot be parsed",
             logging.ERROR,
             exc_info=error,
         )

@@ -20,8 +20,8 @@ time, identified by a `timer_id`. The Timer is the *record*, not the message it 
 has a lifecycle (Scheduled → Due → Claimed → Committed) that its payload does not.
 
 **Topic**:
-The named channel a Timer is Scheduled on and that a subscriber consumes from. Two Redis keys are
-derived per Topic; a Timer only ever exists on one.
+The named channel a Timer is Scheduled on and that a subscriber consumes from. A Timer only ever
+exists on one Topic.
 _Avoid_: queue. A Topic is not a work queue: Timers on a Topic are
 ordered by Activation time, not arrival, and a Claimed Timer stays on the Topic rather than leaving
 it. `channel` survives only where FastStream owns the spelling: the `raw_message` field, the
@@ -53,8 +53,8 @@ excludes those.
 
 **Claim**:
 To take a Due Timer for processing by advancing its Activation time by the Lease, in one atomic
-step, so no other worker sees it as Due. A Claim is not a lock: there is no lock key, no owner
-recorded, and nothing to release. A contested Claim returns nothing and is simply skipped.
+step, with unique ownership that allows only the current Claim to Commit. Scheduling a replacement
+or Claiming again invalidates the previous ownership; a contested Claim returns nothing.
 
 **Lease**:
 The time window a Claim buys, `lease_ttl` seconds wide. It expires on its own; a worker that dies
@@ -64,5 +64,5 @@ exactly-once.
 
 **Commit**:
 To remove a Timer permanently once a handler has accounted for it, via `ack` or `reject`. `nack` is
-not a Commit: it does nothing, and the Lease expiring is what causes redelivery. Cancellation
-performs the identical removal, which is why the store exposes one `remove` and not two.
+not a Commit: it does nothing, and the Lease expiring is what causes redelivery. A stale Commit
+is a no-op; explicit cancellation removes the current Timer regardless of Claim ownership.
