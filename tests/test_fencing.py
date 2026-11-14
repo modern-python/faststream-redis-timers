@@ -145,11 +145,11 @@ async def test_malformed_id_cleanup_preserves_newer_schedule(
     pl = f"{store.payloads_key}:topic"
     claims = store._claims_key("topic")  # noqa: SLF001
     bad_id = b"\xff"
-    original = redis_client.zrangebyscore
+    original = redis_client.execute_command
 
     async def read_then_replace(*args, **kwargs):
         result = await original(*args, **kwargs)
-        if replace_after_read:
+        if args[0] == "ZRANGEBYSCORE" and replace_after_read:
             async with redis_client.pipeline(transaction=True) as pipe:
                 pipe.zadd(tl, {bad_id: 200})
                 pipe.hset(pl, bad_id, b"replacement")
@@ -159,7 +159,7 @@ async def test_malformed_id_cleanup_preserves_newer_schedule(
     try:
         await redis_client.zadd(tl, {bad_id: 100})
         await redis_client.hset(pl, bad_id, b"invalid ID")
-        monkeypatch.setattr(redis_client, "zrangebyscore", read_then_replace)
+        monkeypatch.setattr(redis_client, "execute_command", read_then_replace)
         assert await store.due("topic", 100, 1) == []
         if replace_after_read:
             assert await redis_client.zscore(tl, bad_id) == 200
@@ -448,3 +448,126 @@ async def test_explicit_claim_namespace_is_used_and_cleaned(broker: TimersBroker
         assert await redis_client.exists(f"{prefix}:app:topic") == 0
     finally:
         await store.cancel_all("app:topic")
+
+
+@pytest.mark.parametrize("encoding_errors", ["ignore", "replace"])
+@pytest.mark.parametrize("decode_responses", [False, True])
+async def test_lossy_id_decoding_does_not_block_valid_delivery(
+    broker: TimersBroker,
+    redis_client: Redis,
+    encoding_errors: str,
+    decode_responses: bool,
+) -> None:
+    original = broker.config.broker_config.store
+    client = Redis.from_url(REDIS_URL, encoding_errors=encoding_errors, decode_responses=decode_responses)
+    configured = TimersBroker(client, timeline_key=original.timeline_key, payloads_key=original.payloads_key)
+    store = configured.config.broker_config.store
+    delivered = asyncio.Event()
+    seen: list[bytes] = []
+
+    @configured.subscriber("topic", max_concurrent=1)
+    async def handler(body: bytes) -> None:
+        seen.append(body)
+        delivered.set()
+
+    tl = f"{store.timeline_key}:topic"
+    pl = f"{store.payloads_key}:topic"
+    bad_id = b"\xffK"
+    alias = "K" if encoding_errors == "ignore" else "\ufffdK"
+    try:
+        await configured.connect()
+        await store.schedule("topic", alias, b"future alias payload", 10_000_000_000)
+        await redis_client.zadd(tl, {bad_id: 1})
+        await redis_client.hset(pl, bad_id, b"malformed ID payload")
+        await configured.publish(b"\x00\xffgood", topic="topic", timer_id="good")
+        assert await store.due("topic", 100, 1) == []
+        assert await redis_client.zscore(tl, bad_id) is None
+        assert await redis_client.hget(pl, bad_id) is None
+        assert await redis_client.zscore(tl, alias) == 10_000_000_000
+        assert await redis_client.hget(pl, alias) == b"future alias payload"
+        async with configured:
+            await asyncio.wait_for(delivered.wait(), 5)
+        assert seen == [b"\x00\xffgood"]
+        assert not await store.is_pending("topic", "good")
+        assert await store.is_pending("topic", alias)
+    finally:
+        await store.cancel_all("topic")
+        await configured.stop()
+        await client.aclose()  # ty: ignore[missing-attribute]
+
+
+@pytest.mark.parametrize("operation", ["schedule", "commit", "cancel_all", "remove"])
+async def test_independent_stores_preserve_simultaneous_claim_owners(
+    broker: TimersBroker,
+    redis_client: Redis,
+    operation: str,
+) -> None:
+    first = broker.config.broker_config.store
+    second = TimerStore(ConnectionState(redis_client), f"{first.timeline_key}_other", f"{first.payloads_key}_other")
+    try:
+        await first.schedule("topic", "K", b"first", 100)
+        await second.schedule("topic", "K", b"second", 100)
+        a = await first.claim("topic", "K", 100, 10)
+        b = await second.claim("topic", "K", 100, 10)
+        assert a is not None
+        assert b is not None
+        if operation == "schedule":
+            await first.schedule("topic", "K", b"replacement", 200)
+            assert await first.is_pending("topic", "K")
+        elif operation == "commit":
+            await first.commit("topic", "K", a.token)
+            assert not await first.is_pending("topic", "K")
+        elif operation == "cancel_all":
+            assert await first.cancel_all("topic") == 1
+        else:
+            await first.remove("topic", "K")
+        assert await redis_client.zscore(f"{second.timeline_key}:topic", "K") == 110
+        assert await redis_client.hget(f"{second.payloads_key}:topic", "K") == b"second"
+        await second.commit("topic", "K", b.token)
+        assert not await second.is_pending("topic", "K")
+        assert await redis_client.hget(f"{second.payloads_key}:topic", "K") is None
+    finally:
+        await first.cancel_all("topic")
+        await second.cancel_all("topic")
+
+
+@pytest.mark.parametrize("change", ["replacement", "takeover"])
+async def test_clients_with_same_physical_keys_share_claim_ownership(
+    broker: TimersBroker,
+    redis_client: Redis,
+    change: str,
+) -> None:
+    original = broker.config.broker_config.store
+    timeline = f"{original.timeline_key}_\u00e9"
+    payloads = f"{original.payloads_key}_\u00e9"
+    first = TimerStore(ConnectionState(redis_client), timeline, payloads)
+    client = Redis.from_url(REDIS_URL, encoding="latin-1", decode_responses=True)
+    second = TimerStore(
+        ConnectionState(client),
+        timeline.encode().decode("latin-1"),
+        payloads.encode().decode("latin-1"),
+    )
+    try:
+        await first.schedule("topic", "K", b"original", 100)
+        old = await first.claim("topic", "K", 100, 10)
+        assert old is not None
+        assert await second.claim("topic", "K", 109, 10) is None
+        if change == "replacement":
+            await second.schedule("topic", "K", b"replacement", 200)
+            await first.commit("topic", "K", old.token)
+            assert await first.is_pending("topic", "K")
+            current = await second.claim("topic", "K", 200, 10)
+            assert current is not None
+            assert current.payload == b"replacement"
+        else:
+            current = await second.claim("topic", "K", 110, 10)
+            assert current is not None
+            assert current.payload == b"original"
+            await first.commit("topic", "K", old.token)
+            assert await first.is_pending("topic", "K")
+        await first.commit("topic", "K", current.token)
+        assert not await second.is_pending("topic", "K")
+    finally:
+        await first.cancel_all("topic")
+        await second.cancel_all("topic")
+        await client.aclose()  # ty: ignore[missing-attribute]

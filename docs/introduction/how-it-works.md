@@ -74,7 +74,7 @@ The default ack policy is `NACK_ON_ERROR`: the timer is acknowledged on success,
 | `lease_ttl` | `30` s | How long a worker holds the lease before another worker may re-claim. Set to ~3–5× the P99 handler runtime: lower values speed up recovery from worker death, higher values tolerate handler GC pauses and clock skew |
 | `command_timeout` | `None` (`lease_ttl`) | Most time the subscriber waits on one Redis command (fetch, claim, ack). A primary that goes silent without closing its connections otherwise stalls the subscriber; redis-py before 8.0 sets no socket timeout by default. Must be > 0 and <= `lease_ttl` |
 
-Redis client encoding, encoding error handling, and `decode_responses` settings are preserved. Timer IDs use the client's encoder for storage and inspection; binary message envelopes remain raw bytes during claims.
+Redis client encoding, encoding error handling, and `decode_responses` settings are preserved. Timer IDs use the client's encoder for storage and inspection; binary message envelopes remain raw bytes during claims. During polling, IDs are fetched as raw bytes regardless of response decoding. IDs that cannot decode and re-encode to the same bytes are conditionally cleaned using their original byte identity, so lossy decoding cannot redirect claims or block following valid timers.
 
 By default, ownership keys are `timers_claims:{digest}`. The digest is SHA-256 of the full timeline and payload key bytes as encoded by the client, each preceded by its eight-byte big-endian length. This gives independently configured stores separate ownership metadata, remains stable across restarts, and requires no reserved binary namespace. An explicit `claims_key` instead uses `{claims_key}:{topic}`, including any topic prefix.
 

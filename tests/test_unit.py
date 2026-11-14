@@ -13,6 +13,7 @@ from faststream.exceptions import IncorrectState
 from faststream.specification import AsyncAPI
 from redis.asyncio import Redis
 from redis.asyncio.cluster import RedisCluster
+from redis.client import NEVER_DECODE
 from redis.exceptions import NoScriptError
 
 from faststream_redis_timers import TestTimersBroker, TimersBroker
@@ -476,7 +477,7 @@ async def test_consume_logs_get_msgs_error_with_repr() -> None:
     """A Redis error during _get_msgs is logged at ERROR with `{e!r}` so the type and msg survive Sentry truncation."""
     client = _redis_client()
     client.ping.return_value = True
-    client.zrangebyscore.side_effect = ConnectionError("redis down")
+    client.execute_command.side_effect = ConnectionError("redis down")
     broker = TimersBroker(client, start_timeout=2.0)
 
     @broker.subscriber("topic", polling_interval=0.05)
@@ -637,19 +638,22 @@ async def test_timer_store_schedule() -> None:
 async def test_timer_store_due_bytes_client() -> None:
     """due() decodes bytes IDs for a bytes-mode Redis client."""
     client = _redis_client()
-    client.zrangebyscore = AsyncMock(return_value=[b"timer-1", b"timer-2"])
+    client.execute_command = AsyncMock(return_value=[b"timer-1", b"timer-2"])
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
     result = await store.due("topic", 1000.0, 10)
 
     assert result == ["timer-1", "timer-2"]
-    client.zrangebyscore.assert_awaited_once_with("tl:topic", "-inf", 1000.0, start=0, num=10)
+    client.execute_command.assert_awaited_once_with(
+        "ZRANGEBYSCORE", "tl:topic", "-inf", 1000.0, "LIMIT", 0, 10, **{NEVER_DECODE: []}
+    )
 
 
-async def test_timer_store_due_str_client() -> None:
-    """due() passes str IDs through unchanged for a str-mode Redis client."""
+async def test_timer_store_due_decoding_client() -> None:
+    """due() requests raw IDs even when the client normally decodes replies."""
     client = _redis_client()
-    client.zrangebyscore = AsyncMock(return_value=["timer-1", "timer-2"])
+    client.connection_pool = Redis(decode_responses=True).connection_pool
+    client.execute_command = AsyncMock(return_value=[b"timer-1", b"timer-2"])
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
     result = await store.due("topic", 1000.0, 10)
@@ -660,7 +664,7 @@ async def test_timer_store_due_str_client() -> None:
 async def test_timer_store_due_empty() -> None:
     """due() returns an empty list when no timers are due."""
     client = _redis_client()
-    client.zrangebyscore = AsyncMock(return_value=[])
+    client.execute_command = AsyncMock(return_value=[])
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
     result = await store.due("topic", 1000.0, 10)
@@ -672,7 +676,7 @@ async def test_timer_store_due_non_utf8_self_heal() -> None:
     """due() removes non-UTF-8 members via COMMIT_LUA and excludes them from the result."""
     bad_id = b"\xff\xfe-broken"
     client = _redis_client()
-    client.zrangebyscore = AsyncMock(return_value=[bad_id, b"good-id"])
+    client.execute_command = AsyncMock(return_value=[bad_id, b"good-id"])
 
     store = TimerStore(ConnectionState(client), "tl", "pl")
 

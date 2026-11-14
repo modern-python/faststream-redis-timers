@@ -141,25 +141,34 @@ class TimerStore:
     async def due(self, full_topic: str, now: float, limit: int) -> list[str]:
         """Return up to *limit* timer IDs whose activation_ts <= *now*.
 
-        Handles both bytes-mode and str-mode Redis clients.  Any member whose
-        bytes ID cannot be decoded with the client's encoder is atomically removed (self-heal)
-        and excluded from the result.
+        Fetches raw IDs regardless of response decoding. IDs that cannot round-trip
+        through the client's encoder are conditionally removed using their original bytes.
         """
         tl_key, _ = self._keys(full_topic)
         client = self._connection.client
-        raw_ids: list[bytes] | list[str] = await client.zrangebyscore(tl_key, "-inf", now, start=0, num=limit)
+        raw_ids: list[bytes] = await client.execute_command(
+            "ZRANGEBYSCORE",
+            tl_key,
+            "-inf",
+            now,
+            "LIMIT",
+            0,
+            limit,
+            **{NEVER_DECODE: []},
+        )
+        encoder = client.connection_pool.get_encoder()
         result: list[str] = []
         for raw_id in raw_ids:
-            if isinstance(raw_id, bytes):
-                try:
-                    encoder = client.connection_pool.get_encoder()
-                    result.append(raw_id.decode(encoder.encoding, encoder.encoding_errors))
-                except UnicodeDecodeError:
-                    claim = await self.claim(full_topic, raw_id, now, 1)
-                    if claim is not None:
-                        await self.commit(full_topic, raw_id, claim.token)
+            try:
+                timer_id = raw_id.decode(encoder.encoding, encoder.encoding_errors)
+            except UnicodeDecodeError:
+                timer_id = None
+            if timer_id is not None and encoder.encode(timer_id) == raw_id:
+                result.append(timer_id)
             else:
-                result.append(raw_id)
+                claim = await self.claim(full_topic, raw_id, now, 1)
+                if claim is not None:
+                    await self.commit(full_topic, raw_id, claim.token)
         return result
 
     async def claim(self, full_topic: str, timer_id: str | bytes, now: float, lease_ttl: int) -> TimerClaim | None:
